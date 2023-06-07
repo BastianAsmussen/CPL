@@ -70,7 +70,6 @@ pub enum TokenType {
     // End of file.
     Eof,
 }
-
 pub fn tokenize(source: &str) -> Vec<Token> {
     let mut chars = source.chars().peekable();
     let mut tokens = Vec::new();
@@ -78,6 +77,15 @@ pub fn tokenize(source: &str) -> Vec<Token> {
     let mut column = 1;
 
     while let Some(&c) = chars.peek() {
+        let next_char = {
+            // We use the dummy variable to advance the iterator without consuming the character.
+            let mut dummy = chars.clone();
+            // Advance the iterator 2 characters.
+            // If we did it only once, we'd get the same character since we're peeking.
+            dummy.next();
+            dummy.next()
+        };
+
         match c {
             '(' => tokens.push(single_char_token(TokenType::LeftParen, &mut chars, line, column)),
             ')' => tokens.push(single_char_token(TokenType::RightParen, &mut chars, line, column)),
@@ -91,8 +99,10 @@ pub fn tokenize(source: &str) -> Vec<Token> {
             '/' => tokens.push(single_char_token(TokenType::Slash, &mut chars, line, column)),
             '*' => tokens.push(single_char_token(TokenType::Star, &mut chars, line, column)),
             '!' => {
-                let token_type = if let Some('=') = chars.peek().cloned() {
+                let token_type = if let Some('=') = next_char {
+                    // If the next_char variable ends up being used, we need to make sure the other iterator is up to date.
                     chars.next(); // Consume the second '=' character
+
                     TokenType::BangEqual
                 } else {
                     TokenType::Bang
@@ -100,8 +110,10 @@ pub fn tokenize(source: &str) -> Vec<Token> {
                 tokens.push(single_char_token(token_type, &mut chars, line, column));
             }
             '=' => {
-                let token_type = if let Some('=') = chars.peek().cloned() {
+                let token_type = if let Some('=') = next_char {
+                    // If the next_char variable ends up being used, we need to make sure the other iterator is up to date.
                     chars.next(); // Consume the second '=' character
+
                     TokenType::EqualEqual
                 } else {
                     TokenType::Equal
@@ -109,8 +121,10 @@ pub fn tokenize(source: &str) -> Vec<Token> {
                 tokens.push(single_char_token(token_type, &mut chars, line, column));
             }
             '>' => {
-                let token_type = if let Some('=') = chars.peek().cloned() {
+                let token_type = if let Some('=') = next_char {
+                    // If the next_char variable ends up being used, we need to make sure the other iterator is up to date.
                     chars.next(); // Consume the second '=' character
+
                     TokenType::GreaterEqual
                 } else {
                     TokenType::Greater
@@ -118,8 +132,10 @@ pub fn tokenize(source: &str) -> Vec<Token> {
                 tokens.push(single_char_token(token_type, &mut chars, line, column));
             }
             '<' => {
-                let token_type = if let Some('=') = chars.peek().cloned() {
+                let token_type = if let Some('=') = next_char {
+                    // If the next_char variable ends up being used, we need to make sure the other iterator is up to date.
                     chars.next(); // Consume the second '=' character
+
                     TokenType::LessEqual
                 } else {
                     TokenType::Less
@@ -130,17 +146,17 @@ pub fn tokenize(source: &str) -> Vec<Token> {
             _ if c.is_alphabetic() || c == '_' => tokens.push(identifier_or_keyword(&mut chars, line, column)),
             _ if c.is_ascii_digit() => tokens.push(number_token(&mut chars, line, column)),
             ' ' | '\r' | '\t' => {
-                chars.next(); // Consume whitespace
+                chars.next(); // Consume whitespace.
                 column += 1;
             }
             '\n' => {
                 line += 1;
                 column = 1;
-                chars.next(); // Consume newline
+                chars.next(); // Consume newline.
             }
             _ => {
                 // Handle unexpected character error.
-                chars.next(); // Consume unrecognized character
+                chars.next(); // Consume unrecognized character.
                 column += 1;
             }
         }
@@ -172,9 +188,12 @@ fn string_token(chars: &mut Peekable<Chars>, mut line: u32, mut column: u32) -> 
     let mut lexeme = String::new();
     let mut literal = String::new();
 
-    for c in chars.by_ref() {
+    chars.next(); // Consume the opening double quote.
+
+    while let Some(&c) = chars.peek() {
         match c {
             '"' => {
+                chars.next(); // Consume the closing double quote.
                 return Token {
                     token_type: TokenType::String,
                     lexeme: format!("\"{}\"", lexeme),
@@ -193,6 +212,7 @@ fn string_token(chars: &mut Peekable<Chars>, mut line: u32, mut column: u32) -> 
                 column += 1;
             }
         }
+        chars.next();
     }
 
     // Handle unterminated string error.
@@ -207,6 +227,11 @@ fn string_token(chars: &mut Peekable<Chars>, mut line: u32, mut column: u32) -> 
 
 fn identifier_or_keyword(chars: &mut Peekable<Chars>, line: u32, column: u32) -> Token {
     let lexeme = take_while(chars, |c| c.is_alphanumeric() || *c == '_');
+
+    if lexeme == "\"" {
+        return string_token(chars, line, column);
+    }
+
     let token_type = match lexeme.as_str() {
         "and" => TokenType::And,
         "class" => TokenType::Class,
@@ -226,6 +251,7 @@ fn identifier_or_keyword(chars: &mut Peekable<Chars>, line: u32, column: u32) ->
         "while" => TokenType::While,
         _ => TokenType::Identifier,
     };
+
     Token {
         token_type,
         lexeme,

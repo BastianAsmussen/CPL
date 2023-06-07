@@ -108,6 +108,13 @@ pub enum Error {
         /// The error message.
         message: String,
     },
+    /// An error that occurs when a variable is not defined.
+    UndefinedVariable {
+        /// The token that was encountered.
+        name: Token,
+        /// The error message.
+        message: String,
+    },
 }
 
 /// A structure that contains the tokens and the current index.
@@ -300,7 +307,6 @@ impl Parser {
         }
 
         self.consume(TokenType::RightParen, "Expect ')' after parameters.")?;
-
         self.consume(TokenType::LeftBrace, "Expect '{' before function body.")?;
 
         let body = self.block()?;
