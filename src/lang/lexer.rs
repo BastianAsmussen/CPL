@@ -8,14 +8,17 @@ use std::str::Chars;
 /// * Lexeme: The actual text of the token.
 /// * Literal: The value of the token.
 /// * Line: The line number of the token.
+/// * Column: The column number of the token.
 #[derive(Debug, Clone)]
 pub struct Token {
     pub token_type: TokenType,
     pub lexeme: String,
     pub literal: Option<String>,
     pub line: u32,
+    pub column: u32,
 }
 
+/// An enumeration of all possible token types.
 #[derive(Debug, PartialEq, Clone)]
 pub enum TokenType {
     // Single-character tokens.
@@ -72,20 +75,21 @@ pub fn tokenize(source: &str) -> Vec<Token> {
     let mut chars = source.chars().peekable();
     let mut tokens = Vec::new();
     let mut line = 1;
+    let mut column = 1;
 
     while let Some(&c) = chars.peek() {
         match c {
-            '(' => tokens.push(single_char_token(TokenType::LeftParen, &mut chars, line)),
-            ')' => tokens.push(single_char_token(TokenType::RightParen, &mut chars, line)),
-            '{' => tokens.push(single_char_token(TokenType::LeftBrace, &mut chars, line)),
-            '}' => tokens.push(single_char_token(TokenType::RightBrace, &mut chars, line)),
-            ',' => tokens.push(single_char_token(TokenType::Comma, &mut chars, line)),
-            '.' => tokens.push(single_char_token(TokenType::Dot, &mut chars, line)),
-            '-' => tokens.push(single_char_token(TokenType::Minus, &mut chars, line)),
-            '+' => tokens.push(single_char_token(TokenType::Plus, &mut chars, line)),
-            ';' => tokens.push(single_char_token(TokenType::Semicolon, &mut chars, line)),
-            '/' => tokens.push(single_char_token(TokenType::Slash, &mut chars, line)),
-            '*' => tokens.push(single_char_token(TokenType::Star, &mut chars, line)),
+            '(' => tokens.push(single_char_token(TokenType::LeftParen, &mut chars, line, column)),
+            ')' => tokens.push(single_char_token(TokenType::RightParen, &mut chars, line, column)),
+            '{' => tokens.push(single_char_token(TokenType::LeftBrace, &mut chars, line, column)),
+            '}' => tokens.push(single_char_token(TokenType::RightBrace, &mut chars, line, column)),
+            ',' => tokens.push(single_char_token(TokenType::Comma, &mut chars, line, column)),
+            '.' => tokens.push(single_char_token(TokenType::Dot, &mut chars, line, column)),
+            '-' => tokens.push(single_char_token(TokenType::Minus, &mut chars, line, column)),
+            '+' => tokens.push(single_char_token(TokenType::Plus, &mut chars, line, column)),
+            ';' => tokens.push(single_char_token(TokenType::Semicolon, &mut chars, line, column)),
+            '/' => tokens.push(single_char_token(TokenType::Slash, &mut chars, line, column)),
+            '*' => tokens.push(single_char_token(TokenType::Star, &mut chars, line, column)),
             '!' => {
                 let token_type = if let Some('=') = chars.peek().cloned() {
                     chars.next(); // Consume the second '=' character
@@ -93,7 +97,7 @@ pub fn tokenize(source: &str) -> Vec<Token> {
                 } else {
                     TokenType::Bang
                 };
-                tokens.push(single_char_token(token_type, &mut chars, line));
+                tokens.push(single_char_token(token_type, &mut chars, line, column));
             }
             '=' => {
                 let token_type = if let Some('=') = chars.peek().cloned() {
@@ -102,7 +106,7 @@ pub fn tokenize(source: &str) -> Vec<Token> {
                 } else {
                     TokenType::Equal
                 };
-                tokens.push(single_char_token(token_type, &mut chars, line));
+                tokens.push(single_char_token(token_type, &mut chars, line, column));
             }
             '>' => {
                 let token_type = if let Some('=') = chars.peek().cloned() {
@@ -111,7 +115,7 @@ pub fn tokenize(source: &str) -> Vec<Token> {
                 } else {
                     TokenType::Greater
                 };
-                tokens.push(single_char_token(token_type, &mut chars, line));
+                tokens.push(single_char_token(token_type, &mut chars, line, column));
             }
             '<' => {
                 let token_type = if let Some('=') = chars.peek().cloned() {
@@ -120,21 +124,24 @@ pub fn tokenize(source: &str) -> Vec<Token> {
                 } else {
                     TokenType::Less
                 };
-                tokens.push(single_char_token(token_type, &mut chars, line));
+                tokens.push(single_char_token(token_type, &mut chars, line, column));
             }
-            '"' => tokens.push(string_token(&mut chars, line)),
-            _ if c.is_alphabetic() || c == '_' => tokens.push(identifier_or_keyword(&mut chars, line)),
-            _ if c.is_ascii_digit() => tokens.push(number_token(&mut chars, line)),
+            '"' => tokens.push(string_token(&mut chars, line, column)),
+            _ if c.is_alphabetic() || c == '_' => tokens.push(identifier_or_keyword(&mut chars, line, column)),
+            _ if c.is_ascii_digit() => tokens.push(number_token(&mut chars, line, column)),
             ' ' | '\r' | '\t' => {
                 chars.next(); // Consume whitespace
+                column += 1;
             }
             '\n' => {
                 line += 1;
+                column = 1;
                 chars.next(); // Consume newline
             }
             _ => {
                 // Handle unexpected character error.
                 chars.next(); // Consume unrecognized character
+                column += 1;
             }
         }
     }
@@ -144,22 +151,24 @@ pub fn tokenize(source: &str) -> Vec<Token> {
         lexeme: String::new(),
         literal: None,
         line,
+        column,
     });
 
     tokens
 }
 
-fn single_char_token(token_type: TokenType, chars: &mut Peekable<Chars>, line: u32) -> Token {
+fn single_char_token(token_type: TokenType, chars: &mut Peekable<Chars>, line: u32, column: u32) -> Token {
     let lexeme = chars.next().unwrap().to_string();
     Token {
         token_type,
         lexeme,
         literal: None,
         line,
+        column,
     }
 }
 
-fn string_token(chars: &mut Peekable<Chars>, mut line: u32) -> Token {
+fn string_token(chars: &mut Peekable<Chars>, mut line: u32, mut column: u32) -> Token {
     let mut lexeme = String::new();
     let mut literal = String::new();
 
@@ -171,12 +180,17 @@ fn string_token(chars: &mut Peekable<Chars>, mut line: u32) -> Token {
                     lexeme: format!("\"{}\"", lexeme),
                     literal: Some(literal),
                     line,
+                    column,
                 };
             }
-            '\n' => line += 1,
+            '\n' => {
+                line += 1;
+                column = 1;
+            }
             _ => {
                 lexeme.push(c);
                 literal.push(c);
+                column += 1;
             }
         }
     }
@@ -187,10 +201,11 @@ fn string_token(chars: &mut Peekable<Chars>, mut line: u32) -> Token {
         lexeme: String::new(),
         literal: None,
         line,
+        column,
     }
 }
 
-fn identifier_or_keyword(chars: &mut Peekable<Chars>, line: u32) -> Token {
+fn identifier_or_keyword(chars: &mut Peekable<Chars>, line: u32, column: u32) -> Token {
     let lexeme = take_while(chars, |c| c.is_alphanumeric() || *c == '_');
     let token_type = match lexeme.as_str() {
         "and" => TokenType::And,
@@ -216,10 +231,11 @@ fn identifier_or_keyword(chars: &mut Peekable<Chars>, line: u32) -> Token {
         lexeme,
         literal: None,
         line,
+        column,
     }
 }
 
-fn number_token(chars: &mut Peekable<Chars>, line: u32) -> Token {
+fn number_token(chars: &mut Peekable<Chars>, line: u32, column: u32) -> Token {
     let mut lexeme = String::new();
     let mut literal = String::new();
     let mut decimal_found = false;
@@ -248,6 +264,7 @@ fn number_token(chars: &mut Peekable<Chars>, line: u32) -> Token {
             lexeme,
             literal: Some(number.to_string()),
             line,
+            column,
         }
     } else {
         // Handle number parsing error.
@@ -256,6 +273,7 @@ fn number_token(chars: &mut Peekable<Chars>, line: u32) -> Token {
             lexeme: String::new(),
             literal: None,
             line,
+            column,
         }
     }
 }

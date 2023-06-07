@@ -1,6 +1,11 @@
+use crate::lang::parser::Parser;
+use crate::util::timer;
+
 mod lang;
+mod util;
 
 fn main() {
+
     // Get the file passed as the first argument.
     let file =
         std::env::args()
@@ -8,12 +13,15 @@ fn main() {
             .expect("No source file provided!");
 
     // Read the file into a string.
-    let source =
+    println!("Reading file...");
+
+    let (time, source) = timer::time(||
         std::fs::read_to_string(file)
-            .expect("Failed to read file!");
+            .expect("Failed to read file!")
+    );
 
     println!("Source Code:\n{}", source);
-
+    println!("Reading file took {}.", timer::format_time(time));
     /*
     Source Code
     -> Tokens
@@ -23,14 +31,16 @@ fn main() {
      */
 
     // Tokenize the source code.
-    let tokens = lang::lexer::tokenize(&source);
+    println!("Tokenizing...");
+    let (time, tokens) = timer::time(|| lang::lexer::tokenize(&source));
 
     println!("Tokens:\n{:#?}", tokens);
+    println!("Tokenization took {}.", timer::format_time(time));
 
     // Parse the tokens into an AST.
-    let ast = lang::parser::parse(tokens);
-    match ast {
-        Ok(expr) => println!("AST:\n{:#?}", expr),
-        Err(error) => println!("Parsing Error: {}", error),
-    }
+    println!("Parsing...");
+    let (time, ast) = timer::time(|| Parser::new(&tokens).parse());
+
+    println!("AST:\n{:#?}", ast);
+    println!("Parsing took {}.", timer::format_time(time));
 }
