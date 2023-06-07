@@ -12,5 +12,25 @@ fn main() {
         std::fs::read_to_string(file)
             .expect("Failed to read file!");
 
-    println!("Source code:\n{}", source);
+    println!("Source Code:\n{}", source);
+
+    /*
+    Source Code
+    -> Tokens
+    -> Abstract Syntax Tree (AST)
+    -> Semantic Analysis (Type Checking)
+    -> Interpreter
+     */
+
+    // Tokenize the source code.
+    let tokens = lang::lexer::tokenize(&source);
+
+    println!("Tokens:\n{:#?}", tokens);
+
+    // Parse the tokens into an AST.
+    let ast = lang::parser::parse(tokens);
+    match ast {
+        Ok(expr) => println!("AST:\n{:#?}", expr),
+        Err(error) => println!("Parsing Error: {}", error),
+    }
 }
