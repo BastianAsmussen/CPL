@@ -1,4 +1,11 @@
 use crate::lang::lexer::{Token, TokenType};
+use crate::lang::parser::Stmt::Expression;
+
+/// The maximum number of arguments a function can have.
+pub const MAX_ARGS: usize = 255;
+
+/// The maximum number of parameters a function can have.
+pub const MAX_PARAMS: usize = 255;
 
 /// An enumeration of the different types of expressions.
 #[derive(Debug, Clone)]
@@ -50,9 +57,6 @@ pub enum Literal {
 #[derive(Debug, Clone)]
 pub enum Stmt {
     Expression {
-        expression: Expr,
-    },
-    Print {
         expression: Expr,
     },
     Variable {
@@ -147,6 +151,44 @@ impl Parser {
     /// The previous token.
     fn previous(&self) -> Token {
         self.tokens[self.current - 1].clone()
+    }
+
+    /// Finds the token `n` tokens back in the list.
+    ///
+    /// # Arguments
+    /// * `n` - The number of tokens back to go.
+    ///
+    /// # Returns
+    /// The token `n` tokens back.
+    fn backward(&self, n: usize) -> Token {
+        if self.current < n {
+            self.tokens[0].clone()
+        } else {
+            self.tokens[self.current - n].clone()
+        }
+    }
+
+    /// Finds the token `n` tokens forward in the list.
+    ///
+    /// # Arguments
+    /// * `n` - The number of tokens forward to go.
+    ///
+    /// # Returns
+    /// The token `n` tokens forward.
+    fn forward(&self, n: usize) -> Token {
+        if self.current + n >= self.tokens.len() {
+            self.tokens[self.tokens.len() - 1].clone()
+        } else {
+            self.tokens[self.current + n].clone()
+        }
+    }
+
+    /// Finds the current token in the list.
+    ///
+    /// # Returns
+    /// The current token.
+    fn current(&self) -> Token {
+        self.tokens[self.current].clone()
     }
 
     /// Advances to the next token.
@@ -261,7 +303,7 @@ impl Parser {
     /// # Returns
     /// The variable declaration statement as a result.
     fn variable_declaration(&mut self) -> Result<Stmt, Error> {
-        let name = self.consume(TokenType::Identifier, "Expect variable name.")?;
+        let name = self.consume(TokenType::Identifier, &format!("Expected variable name! ({}:{})", self.previous().line, self.previous().column))?;
 
         let initializer = if self.matches(&[TokenType::Equal]) {
             Some(self.expression()?)
@@ -269,7 +311,7 @@ impl Parser {
             None
         };
 
-        self.consume(TokenType::Semicolon, "Expect ';' after variable declaration.")?;
+        self.consume(TokenType::Semicolon, &format!("Expected ';' after variable declaration! ({}:{})", self.previous().line, self.previous().column))?;
 
         Ok(Stmt::Variable {
             name,
@@ -282,23 +324,22 @@ impl Parser {
     /// # Returns
     /// The function declaration statement as a result.
     fn function_declaration(&mut self) -> Result<Stmt, Error> {
-        let name = self.consume(TokenType::Identifier, "Expect function name.")?;
+        let name = self.consume(TokenType::Identifier, &format!("Expected function name! ({}:{})", self.previous().line, self.previous().column))?;
 
-        self.consume(TokenType::LeftParen, "Expect '(' after function name.")?;
+        self.consume(TokenType::LeftParen, &format!("Expected '(' after function name! ({}:{})", self.previous().line, self.previous().column))?;
 
         let mut parameters = Vec::new();
-
         if !self.check(&TokenType::RightParen) {
             loop {
-                if parameters.len() >= 255 {
+                if parameters.len() >= MAX_PARAMS {
                     return Err(Error::UnexpectedToken {
                         token: self.peek(),
                         expected: vec![TokenType::RightParen],
-                        message: "Cannot have more than 255 parameters.".to_string(),
+                        message: format!("Cannot have more than {} parameters! ({}:{})", MAX_PARAMS, self.peek().line, self.peek().column),
                     });
                 }
 
-                parameters.push(self.consume(TokenType::Identifier, "Expect parameter name.")?);
+                parameters.push(self.consume(TokenType::Identifier, &format!("Expected parameter name! ({}:{})", self.previous().line, self.previous().column))?);
 
                 if !self.matches(&[TokenType::Comma]) {
                     break;
@@ -306,8 +347,8 @@ impl Parser {
             }
         }
 
-        self.consume(TokenType::RightParen, "Expect ')' after parameters.")?;
-        self.consume(TokenType::LeftBrace, "Expect '{' before function body.")?;
+        self.consume(TokenType::RightParen, &format!("Expected ')' after function parameters! ({}:{})", self.previous().line, self.previous().column))?;
+        self.consume(TokenType::LeftBrace, &format!("Expected '{{' before function body! ({}:{})", self.previous().line, self.previous().column))?;
 
         let body = self.block()?;
 
@@ -323,9 +364,7 @@ impl Parser {
     /// # Returns
     /// The statement as a result.
     fn statement(&mut self) -> Result<Stmt, Error> {
-        if self.matches(&[TokenType::Print]) {
-            self.print_statement()
-        } else if self.matches(&[TokenType::LeftBrace]) {
+        if self.matches(&[TokenType::LeftBrace]) {
             Ok(Stmt::Block {
                 statements: self.block()?,
             })
@@ -371,7 +410,7 @@ impl Parser {
             return Err(Error::UnexpectedToken {
                 token: equals,
                 expected: vec![TokenType::Identifier],
-                message: "Invalid assignment target.".to_string(),
+                message: format!("Invalid assignment target! ({}:{})", self.peek().line, self.peek().column),
             });
         }
 
@@ -381,7 +420,7 @@ impl Parser {
     /// Parses an `or` expression.
     ///
     /// # Returns
-    /// The or expression as a result.
+    /// The `or` expression as a result.
     fn or(&mut self) -> Result<Expr, Error> {
         let mut expr = self.and()?;
 
@@ -402,7 +441,7 @@ impl Parser {
     /// Parses an `and` expression.
     ///
     /// # Returns
-    /// The and expression as a result.
+    /// The `and` expression as a result.
     fn and(&mut self) -> Result<Expr, Error> {
         let mut expr = self.equality()?;
 
@@ -423,7 +462,7 @@ impl Parser {
     /// Parses an `equality` expression.
     ///
     /// # Returns
-    /// The equality expression as a result.
+    /// The `equality` expression as a result.
     fn equality(&mut self) -> Result<Expr, Error> {
         let mut expr = self.comparison()?;
 
@@ -444,7 +483,7 @@ impl Parser {
     /// Parses a `comparison` expression.
     ///
     /// # Returns
-    /// The comparison expression as a result.
+    /// The `comparison` expression as a result.
     fn comparison(&mut self) -> Result<Expr, Error> {
         let mut expr = self.term()?;
 
@@ -465,7 +504,7 @@ impl Parser {
     /// Parses a `term` expression.
     ///
     /// # Returns
-    /// The term expression as a result.
+    /// The `term` expression as a result.
     fn term(&mut self) -> Result<Expr, Error> {
         let mut expr = self.factor()?;
 
@@ -486,7 +525,7 @@ impl Parser {
     /// Parses a `factor` expression.
     ///
     /// # Returns
-    /// The factor expression as a result.
+    /// The `factor` expression as a result.
     fn factor(&mut self) -> Result<Expr, Error> {
         let mut expr = self.unary()?;
 
@@ -507,7 +546,7 @@ impl Parser {
     /// Parses a `unary` expression.
     ///
     /// # Returns
-    /// The unary expression as a result.
+    /// The `unary` expression as a result.
     fn unary(&mut self) -> Result<Expr, Error> {
         if self.matches(&[TokenType::Bang, TokenType::Minus]) {
             let operator = self.previous();
@@ -525,7 +564,7 @@ impl Parser {
     /// Parses a `call` expression.
     ///
     /// # Returns
-    /// The call expression as a result.
+    /// The `call` expression as a result.
     fn call(&mut self) -> Result<Expr, Error> {
         let mut expr = self.primary()?;
 
@@ -543,28 +582,13 @@ impl Parser {
     /// Parses a `finish_call` expression.
     ///
     /// # Returns
-    /// The finish call expression as a result.
+    /// The `finish call` expression as a result.
     fn finish_call(&mut self, callee: Expr) -> Result<Expr, Error> {
         let mut arguments = Vec::new();
+        self.load_arguments(&mut arguments)?;
 
-        if !self.check(&TokenType::RightParen) {
-            loop {
-                if arguments.len() >= 255 {
-                    return Err(Error::TooManyArguments {
-                        paren: self.peek(),
-                        message: "Cannot have more than 255 arguments.".to_string(),
-                    });
-                }
-
-                arguments.push(self.expression()?);
-
-                if !self.matches(&[TokenType::Comma]) {
-                    break;
-                }
-            }
-        }
-
-        let paren = self.consume(TokenType::RightParen, "Expect ')' after arguments.")?;
+        // Advance to the closing parenthesis.
+        let paren = self.consume(TokenType::RightParen, &format!("Expected ')' after function arguments! ({}:{})", self.peek().line, self.peek().column))?;
 
         Ok(Expr::Call {
             callee: Box::new(callee),
@@ -576,7 +600,7 @@ impl Parser {
     /// Parses a `primary` expression.
     ///
     /// # Returns
-    /// The primary expression as a result.
+    /// The `primary` expression as a result.
     fn primary(&mut self) -> Result<Expr, Error> {
         if self.matches(&[TokenType::False]) {
             return Ok(Expr::Literal {
@@ -596,24 +620,53 @@ impl Parser {
             });
         }
 
-        if self.matches(&[TokenType::Number, TokenType::String]) {
+        if self.matches(&[TokenType::Number]) {
             return Ok(Expr::Literal {
-                value: Literal::String(self.previous().literal.unwrap()),
+                value: Literal::Number(self.previous().lexeme.parse().unwrap()),
             });
         }
 
+        if self.matches(&[TokenType::String]) {
+            return Ok(Expr::Literal {
+                value: Literal::String(self.previous().lexeme),
+            });
+        }
+
+        // Function calls.
         if self.matches(&[TokenType::Identifier]) {
-            return Ok(Expr::Variable {
-                name: self.previous(),
-            });
-        }
+            if self.peek().token_type != TokenType::LeftParen {
+                return Err(Error::UnexpectedToken {
+                    token: self.peek(),
+                    expected: vec![TokenType::LeftParen],
+                    message: format!("Expected '(' after identifier! ({}:{})", self.peek().line, self.peek().column),
+                });
+            }
 
-        if self.matches(&[TokenType::LeftParen]) {
-            let expr = self.expression()?;
-            self.consume(TokenType::RightParen, "Expect ')' after expression.")?;
+            // It's likely to be an argument if it's another identifier.
+            if self.peek().token_type == TokenType::Identifier {
+                // Handle the argument.
+                return Ok(Expr::Variable {
+                    name: self.advance(),
+                });
+            }
 
-            return Ok(Expr::Grouping {
-                expression: Box::new(expr),
+            // Load the arguments.
+            let mut arguments = Vec::new();
+            println!("Current: {}", self.current);
+            self.load_arguments(&mut arguments)?;
+            println!("Current: {}", self.current);
+
+            let name = self.backward(arguments.len());
+
+            // Advance to the closing parenthesis.
+            let paren = self.consume(TokenType::RightParen, &format!("Expected ')' after function arguments! ({}:{})", self.peek().line, self.peek().column))?;
+
+            return Ok(Expr::Call {
+                callee: Box::new(Expr::Variable {
+                    name,
+                }),
+                paren,
+                arguments,
             });
         }
 
@@ -628,14 +681,14 @@ impl Parser {
                 TokenType::Identifier,
                 TokenType::LeftParen,
             ],
-            message: "Expect expression.".to_string(),
+            message: format!("Expected expression! ({}:{})", self.peek().line, self.peek().column),
         })
     }
 
     /// Parses a block statement.
     ///
     /// # Returns
-    /// The block statement as a result.
+    /// The `block` statement as a result.
     fn block(&mut self) -> Result<Vec<Stmt>, Error> {
         let mut statements = Vec::new();
 
@@ -643,45 +696,32 @@ impl Parser {
             statements.push(self.declaration()?);
         }
 
-        self.consume(TokenType::RightBrace, "Expect '}' after block.")?;
+        self.consume(TokenType::RightBrace, &format!("Expected '}}' after block! ({}:{})", self.peek().line, self.peek().column))?;
 
         Ok(statements)
-    }
-
-    /// Parse a `print` statement.
-    ///
-    /// # Returns
-    /// The print statement as a result.
-    fn print_statement(&mut self) -> Result<Stmt, Error> {
-        let value = self.expression()?;
-        self.consume(TokenType::Semicolon, "Expect ';' after value.")?;
-
-        Ok(Stmt::Print {
-            expression: value,
-        })
     }
 
     /// Parse an `expression` statement.
     ///
     /// # Returns
-    /// The expression statement as a result.
+    /// The `expression` statement as a result.
     fn expression_statement(&mut self) -> Result<Stmt, Error> {
-        let value = self.expression()?;
-        self.consume(TokenType::Semicolon, "Expect ';' after value.")?;
+        let expr = self.expression()?;
+        self.consume(TokenType::Semicolon, &format!("Expected ';' after expression! ({}:{})", self.peek().line, self.peek().column))?;
 
         Ok(Stmt::Expression {
-            expression: value,
+            expression: expr,
         })
     }
 
     /// Parse an `if` statement.
     ///
     /// # Returns
-    /// The if statement as a result.
+    /// The `if` statement as a result.
     fn if_statement(&mut self) -> Result<Stmt, Error> {
-        self.consume(TokenType::LeftParen, "Expect '(' after 'if'.")?;
+        self.consume(TokenType::LeftParen, &format!("Expected '(' after 'if'! ({}:{})", self.peek().line, self.peek().column))?;
         let condition = self.expression()?;
-        self.consume(TokenType::RightParen, "Expect ')' after if condition.")?;
+        self.consume(TokenType::RightParen, &format!("Expected ')' after if condition! ({}:{})", self.peek().line, self.peek().column))?;
 
         let then_branch = self.statement()?;
         let else_branch = if self.matches(&[TokenType::Else]) {
@@ -700,11 +740,11 @@ impl Parser {
     /// Parse a `while` statement.
     ///
     /// # Returns
-    /// The while statement as a result.
+    /// The `while` statement as a result.
     fn while_statement(&mut self) -> Result<Stmt, Error> {
-        self.consume(TokenType::LeftParen, "Expect '(' after 'while'.")?;
+        self.consume(TokenType::LeftParen, &format!("Expected '(' after 'while'! ({}:{})", self.peek().line, self.peek().column))?;
         let condition = self.expression()?;
-        self.consume(TokenType::RightParen, "Expect ')' after condition.")?;
+        self.consume(TokenType::RightParen, &format!("Expected ')' after while condition! ({}:{})", self.peek().line, self.peek().column))?;
 
         let body = self.statement()?;
 
@@ -717,9 +757,9 @@ impl Parser {
     /// Parse a `for` statement.
     ///
     /// # Returns
-    /// The for statement as a result.
+    /// The `for` statement as a result.
     fn for_statement(&mut self) -> Result<Stmt, Error> {
-        self.consume(TokenType::LeftParen, "Expect '(' after 'for'.")?;
+        self.consume(TokenType::LeftParen, &format!("Expected '(' after 'for'! ({}:{})", self.peek().line, self.peek().column))?;
 
         let initializer = if self.matches(&[TokenType::Semicolon]) {
             None
@@ -735,7 +775,7 @@ impl Parser {
             None
         };
 
-        self.consume(TokenType::Semicolon, "Expect ';' after loop condition.")?;
+        self.consume(TokenType::Semicolon, &format!("Expected ';' after loop condition! ({}:{})", self.peek().line, self.peek().column))?;
 
         let increment = if !self.check(&TokenType::RightParen) {
             Some(self.expression()?)
@@ -743,7 +783,7 @@ impl Parser {
             None
         };
 
-        self.consume(TokenType::RightParen, "Expect ')' after for clauses.")?;
+        self.consume(TokenType::RightParen, &format!("Expected ')' after for clauses! ({}:{})", self.peek().line, self.peek().column))?;
 
         let mut body = self.statement()?;
 
@@ -780,7 +820,7 @@ impl Parser {
     /// Parse a `return` statement.
     ///
     /// # Returns
-    /// The return statement as a result.
+    /// The `return` statement as a result.
     fn return_statement(&mut self) -> Result<Stmt, Error> {
         let keyword = self.previous();
         let value = if !self.check(&TokenType::Semicolon) {
@@ -789,11 +829,36 @@ impl Parser {
             None
         };
 
-        self.consume(TokenType::Semicolon, "Expect ';' after return value.")?;
+        self.consume(TokenType::Semicolon, &format!("Expected ';' after return value! ({}:{})", self.peek().line, self.peek().column))?;
 
         Ok(Stmt::Return {
             keyword,
             value,
         })
+    }
+
+    fn load_arguments(&mut self, arguments: &mut Vec<Expr>) -> Result<Vec<Expr>, Error> {
+        let mut current = self.current + 1;
+
+        while self.forward(current).token_type != TokenType::RightParen {
+            arguments.push(self.expression()?);
+            current += 1;
+
+            if !self.matches(&[TokenType::Comma]) {
+                break;
+            }
+        }
+
+        if arguments.len() > MAX_ARGS {
+            return Err(Error::TooManyArguments {
+                paren: self.previous(),
+                message: format!("Cannot have more than {} arguments! ({}:{})", MAX_ARGS, self.peek().line, self.peek().column),
+            });
+        }
+
+        // Update the current token.
+        self.current = current;
+
+        Ok(arguments.to_vec())
     }
 }

@@ -3,6 +3,5 @@ fn main() {
 }
 
 fn test() {
-    let text = "Hello, world!";
-    print(text);
+    let text = "Hej!";
 }

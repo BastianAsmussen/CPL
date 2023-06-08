@@ -1,42 +1,105 @@
-/// Time a function and return the elapsed time in nanoseconds and the result of the function call as a tuple.
-///
-/// # Arguments
-///
-/// * `function` - The function to time.
-///
-/// # Examples
-///
-/// ```
-/// let (time, result) = time(|| {
-///     let mut sum = 0;
-///     while sum != 1_000_000 {
-///         sum += 1;
-///     }
-///
-///     sum
-/// });
-///
-/// println!("Function took {} nanoseconds.", time);
-/// println!("Result of function call: {}", result);
-/// ```
-pub fn time<F, R>(function: F) -> (u128, R)
-    where
-        F: FnOnce() -> R,
-{
-    let start = std::time::Instant::now();
-    let result = function();
-    let elapsed = start.elapsed().as_nanos();
-    (elapsed, result)
+/// A timer that can be used to time multiple functions.
+/// Timings are stored in nanoseconds.
+pub struct Timer {
+    times: Vec<u128>,
+}
+
+impl Timer {
+    /// Creates a new timer with no times recorded.
+    pub fn new() -> Self {
+        Self {
+            times: Vec::new(),
+        }
+    }
+
+    /// Time a function and return the elapsed time in nanoseconds and the result of the function call as a tuple.
+    ///
+    /// # Arguments
+    /// * `function` - The function to time.
+    ///
+    /// # Examples
+    /// ```
+    /// let mut timer = Timer::new();
+    ///
+    /// let (time, result) = timer.time(|| {
+    ///     let mut sum = 0;
+    ///     while sum != 1_000_000 {
+    ///         sum += 1;
+    ///     }
+    ///
+    ///     sum
+    /// });
+    ///
+    /// println!("Function took {} nanoseconds.", time);
+    /// println!("Result of function call: {}", result);
+    /// ```
+    pub fn time<F, R>(&mut self, function: F) -> (u128, R)
+        where
+            F: FnOnce() -> R,
+    {
+        let start = std::time::Instant::now();
+        let result = function();
+        let elapsed = start.elapsed().as_nanos();
+
+        self.times.push(elapsed);
+
+        (elapsed, result)
+    }
+
+    /// Get the total time elapsed by all timers.
+    ///
+    /// # Examples
+    /// ```
+    /// let mut timer = Timer::new();
+    ///
+    /// let (time, result) = timer.time(|| {
+    ///     let mut sum = 0;
+    ///     while sum != 1_000_000 {
+    ///         sum += 1;
+    ///     }
+    ///
+    ///     sum
+    /// });
+    /// println!("Function took {} nanoseconds.", time);
+    ///
+    /// let (time, result) = timer.time(|| {
+    ///     let mut sum = 0;
+    ///     while sum != 5_000_000 {
+    ///         sum += 1;
+    ///     }
+    ///
+    ///     sum
+    /// });
+    /// println!("Function took {} nanoseconds.", time);
+    ///
+    /// // Prints the time it took for both functions to run in nanoseconds.
+    /// println!("Total Time: {} nanoseconds.", timer.total_time());
+    pub fn total_time(&self) -> u128 {
+        self.times.iter().sum()
+    }
+
+    /// Get the average time elapsed by a timer.
+    pub fn average_time(&self) -> u128 {
+        self.total_time() / self.times.len() as u128
+    }
+
+    /// Get the minimum time elapsed by a timer.
+    pub fn min_time(&self) -> u128 {
+        *self.times.iter().min().unwrap()
+    }
+
+    /// Get the maximum time elapsed by a timer.
+    pub fn max_time(&self) -> u128 {
+        *self.times.iter().max().unwrap()
+    }
 }
 
 /// Format a time in nanoseconds into a human-readable string.
 ///
 /// # Arguments
-///
 /// * `nanos` - The time in nanoseconds.
 ///
 /// # Examples
-///
 /// ```
 /// let nanos = 1_000_000_000;
 ///
