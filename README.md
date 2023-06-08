@@ -1,13 +1,19 @@
 # CPL
-Big thank you to the [FreeCodeCamp Blog Post](https://www.freecodecamp.org/news/the-programming-language-pipeline-91d3f449c919/) for the inspiration!
+
+Big thank you to
+the [FreeCodeCamp Blog Post](https://www.freecodecamp.org/news/the-programming-language-pipeline-91d3f449c919/) for the
+inspiration!
 
 I am going to be creating a programming language from scratch. I will be documenting my progress here.
-I'll be following along with [this](https://hackernoon.com/building-your-own-programming-language-from-scratch) blog post to get started.
+I'll be following along with [this](https://hackernoon.com/building-your-own-programming-language-from-scratch) blog
+post to get started.
 
 I'll be a compiled language, and I'll be using Rust to write it!
 
 # Syntax
+
 ## Keywords
+
 - `let` - Declare a variable (Type is inferred, e.g. `let x = 5`)
 - `:` - Declare a variable with a type. (e.g. `let x: i32 = 5`)
 - `fn` - Declare a function.
@@ -26,6 +32,7 @@ I'll be a compiled language, and I'll be using Rust to write it!
 - `export` - Export a module. (Maybe)
 
 ## Literals
+
 - `true` - Boolean true.
 - `false` - Boolean false.
 - `0 - 9` - Numbers (Including decimals).
@@ -33,6 +40,7 @@ I'll be a compiled language, and I'll be using Rust to write it!
 - `'` - Character.
 
 ## Operators
+
 - `+` - Addition.
 - `-` - Subtraction.
 - `*` - Multiplication.
@@ -70,6 +78,7 @@ I'll be a compiled language, and I'll be using Rust to write it!
 - `->` - Function arrow.
 
 ## Types
+
 - `i8` - 8-bit signed integer.
 - `i16` - 16-bit signed integer.
 - `i32` - 32-bit signed integer.
@@ -89,12 +98,15 @@ I'll be a compiled language, and I'll be using Rust to write it!
 - `void` - Void.
 
 ## Comments
+
 - `//` - Single line comment.
 - `/* */` - Multi line comment.
 - `///` - Documentation comment. (Maybe)
 
 # Examples
+
 ## Hello World
+
 ```cpl
 fn main() {
     print("Hello World!");
@@ -102,6 +114,7 @@ fn main() {
 ```
 
 ## Variables
+
 ```cpl
 fn main() {
     let a: i32 = 5;
@@ -113,6 +126,7 @@ fn main() {
 ```
 
 ## Functions
+
 ```cpl
 fn main() {
     let a: i32 = 5;
@@ -128,6 +142,7 @@ fn add(a: i32, b: i32) -> i32 {
 ```
 
 ## If Statements
+
 ```cpl
 fn main() {
     let a: i32 = 5;
@@ -144,6 +159,7 @@ fn main() {
 ```
 
 ## Switch Statements
+
 ```cpl
 fn main() {
     let a: i32 = 5;
@@ -160,6 +176,7 @@ fn main() {
 ```
 
 ## While Loops
+
 ```cpl
 fn main() {
     let a: i32 = 0;
@@ -172,6 +189,7 @@ fn main() {
 ```
 
 ## For Loops
+
 ```cpl
 fn main() {
     for i in 0 to 10 {
