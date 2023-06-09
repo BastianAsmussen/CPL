@@ -61,12 +61,12 @@ impl Cpl {
         println!("Tokenization took {}.", format_time(time));
 
         // Parse the tokens.
-        // println!("Parsing...");
-        // let (time, syntax_tree) = timer.time(|| parser::Parser::new(tokens).parse());
-        //
-        // println!("Syntax tree:\n{:#?}", syntax_tree);
-        // println!("Parsing took {}.", format_time(time));
-        //
-        // println!("Total time: {}.", format_time(timer.total_time()));
+        println!("Parsing...");
+        let (time, syntax_tree) = timer.time(|| parser::Parser::new(&tokens).parse());
+
+        println!("Syntax tree:\n{:#?}", syntax_tree);
+        println!("Parsing took {}.", format_time(time));
+
+        println!("Total time: {}.", format_time(timer.total_time()));
     }
 }

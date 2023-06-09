@@ -5,8 +5,9 @@ the [FreeCodeCamp Blog Post](https://www.freecodecamp.org/news/the-programming-l
 inspiration!
 
 I am going to be creating a programming language from scratch. I will be documenting my progress here.
-I'll be following along with [this](https://hackernoon.com/building-your-own-programming-language-from-scratch) blog
-post to get started.
+I'll be following along with [this blog](https://hackernoon.com/building-your-own-programming-language-from-scratch),
+and [this blog](https://pgrandinetti.github.io/compilers/page/how-to-build-a-new-programming-language/)
+as well to get started.
 
 I'll be a compiled language, and I'll be using Rust to write it!
 
