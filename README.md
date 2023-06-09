@@ -80,18 +80,24 @@ I'll be a compiled language, and I'll be using Rust to write it!
 
 ## Types
 
-- `f32` - 32-bit floating point number.
-- `f64` - 64-bit floating point number.
 - `i8` - 8-bit signed integer.
 - `i16` - 16-bit signed integer.
 - `i32` - 32-bit signed integer.
 - `i64` - 64-bit signed integer.
 - `i128` - 128-bit signed integer.
+
 - `u8` - 8 bit unsigned integer.
 - `u16` - 16 bit unsigned integer.
 - `u32` - 32 bit unsigned integer.
 - `u64` - 64 bit unsigned integer.
 - `u128` - 128 bit unsigned integer.
+
+- `f32` - 32-bit floating point number.
+- `f64` - 64-bit floating point number.
+
+- `bool` - Boolean.
+- `char` - Character.
+- `str` - String.
 - `none` - Null value.
 
 ## Comments
