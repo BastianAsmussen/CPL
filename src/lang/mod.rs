@@ -4,6 +4,7 @@ use crate::util::timer::{format_time, Timer};
 
 pub mod lexer;
 pub mod parser;
+pub mod analyzer;
 
 /// A struct representing a CPL program.
 pub struct Cpl {
@@ -66,6 +67,12 @@ impl Cpl {
 
         println!("Syntax tree:\n{:#?}", syntax_tree);
         println!("Parsing took {}.", format_time(time));
+
+        // Check for errors.
+        if syntax_tree.is_err() {
+            self.had_error = true;
+            return;
+        }
 
         println!("Total time: {}.", format_time(timer.total_time()));
     }

@@ -38,7 +38,7 @@ pub enum Expr {
     },
     Call {
         callee: Box<Expr>,
-        paren: Token,
+        parenthesis: Token,
         arguments: Vec<Expr>,
     },
 }
@@ -647,7 +647,7 @@ impl Parser {
 
         Ok(Expr::Call {
             callee: Box::new(callee),
-            paren,
+            parenthesis: paren,
             arguments,
         })
     }
@@ -727,7 +727,7 @@ impl Parser {
 
             return Ok(Expr::Call {
                 callee: Box::new(Expr::Variable { name }),
-                paren,
+                parenthesis: paren,
                 arguments,
             });
         }

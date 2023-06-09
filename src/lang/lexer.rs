@@ -649,6 +649,22 @@ pub enum TokenType {
     /// let a = 6;
     /// ```
     Variable,
+    /// The 'const' keyword.
+    /// Used for constant declarations.
+    ///
+    /// # Example
+    /// ```
+    /// const a = 6;
+    /// ```
+    Constant,
+    /// The primitive type tokens.
+    /// Indicates the type of a variable, function parameter, or function return type as long as it is a primitive type.
+    ///
+    /// # Example
+    /// ```
+    /// let a: i32 = 6;
+    /// ```
+    PrimitiveType,
 
     /// Used to represent the end of a file.
     EndOfFile,
@@ -1097,6 +1113,11 @@ impl Scanner {
             "print" => TokenType::Print,
             "return" => TokenType::Return,
             "let" => TokenType::Variable,
+            "const" => TokenType::Constant,
+            | "i8" | "i16" | "i32" | "i64"
+            | "u8" | "u16" | "u32" | "u64"
+            | "f32" | "f64"
+            | "bool" | "char" | "str" => TokenType::PrimitiveType,
             _ => TokenType::Identifier,
         };
 
