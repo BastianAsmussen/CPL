@@ -11,6 +11,9 @@ as well to get started.
 
 I'll be a compiled language, and I'll be using Rust to write it!
 
+I'll be referencing [this article](https://www.geeksforgeeks.org/semantic-analysis-in-compiler-design/) from
+GeeksForGeeks for the semantic analysis.
+
 # Syntax
 
 ## Keywords
