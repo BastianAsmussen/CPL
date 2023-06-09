@@ -2,9 +2,9 @@ use std::io::Write;
 
 use crate::util::timer::{format_time, Timer};
 
+pub mod analyzer;
 pub mod lexer;
 pub mod parser;
-pub mod analyzer;
 
 /// A struct representing a CPL program.
 pub struct Cpl {
