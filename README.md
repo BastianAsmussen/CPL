@@ -18,15 +18,17 @@ I'll be a compiled language, and I'll be using Rust to write it!
 - `:` - Declare a variable with a type. (e.g. `let x: i32 = 5`)
 - `fn` - Declare a function.
 - `if` - Declare an "if" statement.
-- `else if` - Declare an "else if" statement.
+- `elif` - Declare an "else if" statement.
 - `else` - Declare an "else" statement.
 - `switch` - Declare a "switch" statement.
+- `case` - Declare a "case" statement.
+- `default` - Declare a "default" statement.
 - `while` - Declare a "while" loop.
 - `for` - Declare a "for" loop.
 - `break` - Break out of a loop.
 - `continue` - Continue to the next iteration of a loop.
 - `return` - Return a value from a function.
-- `null` - Null value.
+- `none` - Null value.
 - `to` - Used in ranges. (e.g. `0 to 10`)
 - `import` - Import a module. (Maybe)
 - `export` - Export a module. (Maybe)
@@ -46,7 +48,6 @@ I'll be a compiled language, and I'll be using Rust to write it!
 - `*` - Multiplication.
 - `/` - Division.
 - `%` - Modulus.
-- `^` - Exponent.
 - `=` - Assignment.
 - `==` - Equals.
 - `!=` - Not equals.
@@ -54,17 +55,17 @@ I'll be a compiled language, and I'll be using Rust to write it!
 - `<` - Less than.
 - `>=` - Greater than or equal to.
 - `<=` - Less than or equal to.
-- `&&` - And.
-- `||` - Or.
+- `&&` - Logical And.
+- `||` - Logical Or.
 - `!` - Not.
-- `&` - Bitwise and.
-- `|` - Bitwise or.
-- `~` - Bitwise not.
+- `&` - Bitwise And.
+- `|` - Bitwise Or.
+- `^` - Bitwise Xor.
 - `<<` - Bitwise left shift.
 - `>>` - Bitwise right shift.
 - `&=` - Bitwise and assignment.
 - `|=` - Bitwise or assignment.
-- `~=` - Bitwise not assignment.
+- `^=` - Bitwise xor assignment.
 - `<<=` - Bitwise left shift assignment.
 - `>>=` - Bitwise right shift assignment.
 - `++` - Increment.
@@ -74,11 +75,12 @@ I'll be a compiled language, and I'll be using Rust to write it!
 - `*=` - Multiplication assignment.
 - `/=` - Division assignment.
 - `%=` - Modulus assignment.
-- `^=` - Exponent assignment.
-- `->` - Function arrow.
+- `->` - Function return indicator.
 
 ## Types
 
+- `f32` - 32-bit floating point number.
+- `f64` - 64-bit floating point number.
 - `i8` - 8-bit signed integer.
 - `i16` - 16-bit signed integer.
 - `i32` - 32-bit signed integer.
@@ -89,13 +91,7 @@ I'll be a compiled language, and I'll be using Rust to write it!
 - `u32` - 32 bit unsigned integer.
 - `u64` - 64 bit unsigned integer.
 - `u128` - 128 bit unsigned integer.
-- `f32` - 32-bit floating point number.
-- `f64` - 64-bit floating point number.
-- `bool` - Boolean.
-- `char` - Character.
-- `str` - String.
-- `null` - Null.
-- `void` - Void.
+- `none` - Null value.
 
 ## Comments
 
@@ -116,13 +112,11 @@ fn main() {
 ## Variables
 
 ```cpl
-fn main() {
-    let a: i32 = 5;
-    let b: i32 = 10;
-    let c = a + b;
-    
-    print(c);
-}
+let a: i32 = 5;
+let b: i32 = 10;
+let c = a + b;
+
+print(c);
 ```
 
 ## Functions
@@ -144,69 +138,59 @@ fn add(a: i32, b: i32) -> i32 {
 ## If Statements
 
 ```cpl
-fn main() {
-    let a: i32 = 5;
-    let b: i32 = 10;
-    
-    if a > b {
-        print("a is greater than b.");
-    } else if a < b {
-        print("a is less than b.");
-    } else {
-        print("a is equal to b.");
-    }
+let a: i32 = 5;
+let b: i32 = 10;
+
+if a > b {
+    print("a is greater than b.");
+} else if a < b {
+    print("a is less than b.");
+} else {
+    print("a is equal to b.");
 }
 ```
 
 ## Switch Statements
 
 ```cpl
-fn main() {
-    let a: i32 = 5;
+let a: i32 = 5;
     
-    switch a {
-        1 => print("a is 1."),
-        2 => print("a is 2."),
-        3 => print("a is 3."),
-        4 => print("a is 4."),
-        5 => print("a is 5."),
-        _ => print("a is not 1, 2, 3, 4, or 5."),
-    }
+switch a {
+    1 => print("a is 1."),
+    2 => print("a is 2."),
+    3 => print("a is 3."),
+    4 => print("a is 4."),
+    5 => print("a is 5."),
+    _ => print("a is not 1, 2, 3, 4, or 5."),
 }
 ```
 
 ## While Loops
 
 ```cpl
-fn main() {
-    let a: i32 = 0;
-    
-    while a < 10 {
-        print(a);
-        a += 1;
-    }
+let a: i32 = 0;
+
+while a < 10 {
+    print(a);
+    a += 1;
 }
 ```
 
 ## For Loops
 
 ```cpl
-fn main() {
-    for i in 0 to 10 {
-        print(i);
-    }
+for i in 0 to 10 {
+    print(i);
 }
 ```
 
 ## Comments
 
 ```cpl
-fn main() {
-    // This is a single line comment.
+// This is a single line comment.
     
-    /*
-     This is a multi line comment.
-     It can span multiple lines. (Obviously)
-     */
-}
+/*
+ This is a multi line comment.
+ It can span multiple lines. (Obviously)
+ */
 ```
