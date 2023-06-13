@@ -1,4 +1,4 @@
-# CPL
+# CPL (Custom Programming Language)
 
 Big thank you to
 the [FreeCodeCamp Blog Post](https://www.freecodecamp.org/news/the-programming-language-pipeline-91d3f449c919/) for the
@@ -9,10 +9,12 @@ I'll be following along with [this blog](https://hackernoon.com/building-your-ow
 and [this blog](https://pgrandinetti.github.io/compilers/page/how-to-build-a-new-programming-language/)
 as well to get started.
 
-I'll be a compiled language, and I'll be using Rust to write it!
-
-I'll be referencing [this article](https://www.geeksforgeeks.org/semantic-analysis-in-compiler-design/) from
+I will refer to [this article](https://www.geeksforgeeks.org/semantic-analysis-in-compiler-design/) from
 GeeksForGeeks for the semantic analysis.
+
+CPL will be a compiled language, and I'll be using Rust to write it!
+I've decided to use [LLVM](https://llvm.org/) as my backend,
+and I will be using [Inkwell](https://github.com/TheDan64/inkwell) as my LLVM wrapper.
 
 # Syntax
 
@@ -22,7 +24,7 @@ GeeksForGeeks for the semantic analysis.
 - `:` - Declare a variable with a type. (e.g. `let x: i32 = 5`)
 - `fn` - Declare a function.
 - `if` - Declare an "if" statement.
-- `elif` - Declare an "else if" statement.
+- `else if` - Declare an "else if" statement.
 - `else` - Declare an "else" statement.
 - `switch` - Declare a "switch" statement.
 - `case` - Declare a "case" statement.

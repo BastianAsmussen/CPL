@@ -1,192 +1,661 @@
-use crate::lang::lexer::{Token, TokenType};
+use crate::lang::errors::{report, Error};
+use crate::lang::lexer::{Literal, Token, TokenType};
+use crate::lang::{MAX_ARGUMENTS, MAX_PARAMETERS};
+use std::fmt::Display;
 
-/// The maximum number of arguments a function can have.
-pub const MAX_ARGS: usize = 255;
-
-/// The maximum number of parameters a function can have.
-pub const MAX_PARAMS: usize = 255;
-
-/// An enumeration of the different types of expressions.
+/// An expression is a piece of code that evaluates to a value.
 #[derive(Debug, Clone)]
-pub enum Expr {
+pub enum Expression {
     Binary {
-        left: Box<Expr>,
+        left: Box<Expression>,
         operator: Token,
-        right: Box<Expr>,
-    },
-    Logical {
-        left: Box<Expr>,
-        operator: Token,
-        right: Box<Expr>,
+        right: Box<Expression>,
     },
     Grouping {
-        expression: Box<Expr>,
+        expression: Box<Expression>,
     },
     Literal {
         value: Literal,
     },
     Unary {
         operator: Token,
-        right: Box<Expr>,
+        right: Box<Expression>,
     },
     Variable {
         name: Token,
     },
     Assign {
         name: Token,
-        value: Box<Expr>,
+        value: Box<Expression>,
     },
     Call {
-        callee: Box<Expr>,
+        callee: Box<Expression>,
         parenthesis: Token,
-        arguments: Vec<Expr>,
+        arguments: Vec<Expression>,
     },
 }
 
-/// An enumeration of the different types of literals.
-#[derive(Debug, Clone)]
-pub enum Literal {
-    String(String),
-    Number(f64),
-    Boolean(bool),
-    None,
+impl Display for Expression {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Expression::Binary {
+                left,
+                operator,
+                right,
+            } => {
+                write!(f, "({} {} {})", operator.lexeme, left, right)
+            }
+            Expression::Grouping { expression } => write!(f, "(group {})", expression),
+            Expression::Literal { value } => write!(f, "{}", value),
+            Expression::Unary { operator, right } => write!(f, "({} {})", operator.lexeme, right),
+            Expression::Variable { name } => write!(f, "{}", name.lexeme),
+            Expression::Assign { name, value } => write!(f, "(= {} {})", name.lexeme, value),
+            Expression::Call {
+                callee,
+                parenthesis: _parenthesis,
+                arguments,
+            } => {
+                write!(f, "({}(", callee)?;
+
+                for (i, argument) in arguments.iter().enumerate() {
+                    write!(f, "{}", argument)?;
+
+                    if i != arguments.len() - 1 {
+                        write!(f, ", ")?;
+                    }
+                }
+
+                write!(f, "))")
+            }
+        }
+    }
 }
 
-/// An enumeration of the different types of statements.
+/// A statement is a piece of code that does not evaluate to a value.
 #[derive(Debug, Clone)]
-pub enum Stmt {
-    Expression {
-        expression: Expr,
-    },
+pub enum Statement {
+    Expression(Expression),
+    Print(Expression),
     Variable {
         name: Token,
-        initializer: Option<Expr>,
+        initializer: Option<Expression>,
     },
     Block {
-        statements: Vec<Stmt>,
+        statements: Vec<Statement>,
     },
     If {
-        condition: Expr,
-        then_branch: Box<Stmt>,
-        else_branch: Option<Box<Stmt>>,
+        condition: Expression,
+        then_branch: Box<Statement>,
+        else_branch: Option<Box<Statement>>,
     },
     While {
-        condition: Expr,
-        body: Box<Stmt>,
+        condition: Expression,
+        body: Box<Statement>,
     },
     Function {
         name: Token,
         parameters: Vec<Token>,
-        body: Box<Stmt>,
+        body: Box<Statement>,
     },
     Return {
         keyword: Token,
-        value: Option<Expr>,
+        value: Option<Expression>,
+    },
+    Break {
+        keyword: Token,
+    },
+    Continue {
+        keyword: Token,
     },
 }
 
-/// An enumeration of the different types of errors.
-#[derive(Debug, Clone)]
-pub enum Error {
-    /// An error that occurs when the parser encounters an unexpected token.
-    UnexpectedToken {
-        /// The token that was encountered.
-        token: Token,
-        /// The expected token types.
-        expected: Vec<TokenType>,
-        /// The error message.
-        message: String,
-    },
-    /// An error that occurs when the parser encounters too many parameters.
-    TooManyParameters {
-        /// The token that was encountered.
-        parenthesis: Token,
-        /// The error message.
-        message: String,
-    },
-    /// An error that occurs when the parser encounters too many arguments.
-    TooManyArguments {
-        /// The token that was encountered.
-        parenthesis: Token,
-        /// The error message.
-        message: String,
-    },
-    /// An error that occurs when the parser encounters an invalid assignment.
-    InvalidAssignment {
-        /// The token that was encountered.
-        token: Token,
-        /// The error message.
-        message: String,
-    },
+impl Iterator for Box<Statement> {
+    type Item = Statement;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        Some(*self.clone())
+    }
 }
 
-/// A structure that contains the tokens and the current index.
-#[derive(Debug, Clone)]
+/// A parser for the CPL language.
+#[derive(Debug)]
 pub struct Parser {
     tokens: Vec<Token>,
     current: usize,
+
+    errors: Vec<Error>,
+    had_error: bool,
 }
 
 impl Parser {
-    /// Checks if we're at the end of the tokens.
-    ///
-    /// # Returns
-    /// True if we're at the end of the tokens, false otherwise.
+    pub fn new(tokens: &[Token]) -> Self {
+        Self {
+            tokens: tokens.to_vec(),
+            current: 0,
+
+            errors: Vec::new(),
+            had_error: false,
+        }
+    }
+
+    pub fn parse(&mut self) -> Result<Vec<Statement>, Vec<Error>> {
+        let mut statements = Vec::new();
+
+        while !self.is_at_end() {
+            statements.push(self.declaration());
+        }
+
+        if self.had_error {
+            Err(self.errors.clone())
+        } else {
+            Ok(statements)
+        }
+    }
+
+    fn declaration(&mut self) -> Statement {
+        if self.matches(&[TokenType::Variable]) {
+            self.variable_declaration()
+        } else if self.matches(&[TokenType::Function]) {
+            self.function_declaration()
+        } else {
+            *self.statement()
+        }
+    }
+
+    fn expression(&mut self) -> Expression {
+        self.assignment()
+    }
+
+    fn assignment(&mut self) -> Expression {
+        let expression = self.or();
+
+        if self.matches(&[TokenType::Equal]) {
+            let equals = self.previous().clone();
+            let value = self.assignment();
+
+            match expression {
+                Expression::Variable { name } => {
+                    return Expression::Assign {
+                        name,
+                        value: Box::new(value),
+                    };
+                }
+                _ => {
+                    self.error(&equals, "Invalid assignment target!");
+                }
+            }
+        }
+
+        expression
+    }
+
+    fn or(&mut self) -> Expression {
+        let mut expression = self.and();
+
+        while self.matches(&[TokenType::LogicalOr]) {
+            let operator = self.previous().clone();
+            let right = self.and();
+
+            expression = Expression::Binary {
+                left: Box::new(expression),
+                operator,
+                right: Box::new(right),
+            };
+        }
+
+        expression
+    }
+
+    fn and(&mut self) -> Expression {
+        let mut expression = self.equality();
+
+        while self.matches(&[TokenType::LogicalAnd]) {
+            let operator = self.previous().clone();
+            let right = self.equality();
+
+            expression = Expression::Binary {
+                left: Box::new(expression),
+                operator,
+                right: Box::new(right),
+            };
+        }
+
+        expression
+    }
+
+    fn equality(&mut self) -> Expression {
+        let mut expression = self.comparison();
+
+        while self.matches(&[TokenType::BangEqual, TokenType::EqualEqual]) {
+            let operator = self.previous().clone();
+            let right = self.comparison();
+
+            expression = Expression::Binary {
+                left: Box::new(expression),
+                operator,
+                right: Box::new(right),
+            };
+        }
+
+        expression
+    }
+
+    fn comparison(&mut self) -> Expression {
+        let mut expression = self.term();
+
+        while self.matches(&[
+            TokenType::GreaterThan,
+            TokenType::GreaterThanOrEqual,
+            TokenType::LessThan,
+            TokenType::LessThanOrEqual,
+        ]) {
+            let operator = self.previous().clone();
+            let right = self.term();
+
+            expression = Expression::Binary {
+                left: Box::new(expression),
+                operator,
+                right: Box::new(right),
+            };
+        }
+
+        expression
+    }
+
+    fn term(&mut self) -> Expression {
+        let mut expression = self.factor();
+
+        while self.matches(&[TokenType::Minus, TokenType::Plus]) {
+            let operator = self.previous().clone();
+            let right = self.factor();
+
+            expression = Expression::Binary {
+                left: Box::new(expression),
+                operator,
+                right: Box::new(right),
+            };
+        }
+
+        expression
+    }
+
+    fn factor(&mut self) -> Expression {
+        let mut expression = self.unary();
+
+        while self.matches(&[TokenType::Slash, TokenType::Star]) {
+            let operator = self.previous().clone();
+            let right = self.unary();
+
+            expression = Expression::Binary {
+                left: Box::new(expression),
+                operator,
+                right: Box::new(right),
+            };
+        }
+
+        expression
+    }
+
+    fn unary(&mut self) -> Expression {
+        if self.matches(&[TokenType::Bang, TokenType::Minus]) {
+            let operator = self.previous().clone();
+            let right = self.unary();
+
+            Expression::Unary {
+                operator,
+                right: Box::new(right),
+            }
+        } else {
+            self.call()
+        }
+    }
+
+    fn call(&mut self) -> Expression {
+        let mut expression = self.primary();
+
+        loop {
+            if self.matches(&[TokenType::LeftParenthesis]) {
+                expression = self.finish_call(expression);
+            } else {
+                break;
+            }
+        }
+
+        expression
+    }
+
+    fn primary(&mut self) -> Expression {
+        if self.matches(&[TokenType::False]) {
+            Expression::Literal {
+                value: Literal::Boolean(false),
+            }
+        } else if self.matches(&[TokenType::True]) {
+            Expression::Literal {
+                value: Literal::Boolean(true),
+            }
+        } else if self.matches(&[TokenType::None]) {
+            Expression::Literal {
+                value: Literal::None,
+            }
+        } else if self.matches(&[TokenType::Number, TokenType::String]) {
+            let previous = self.previous().clone();
+            let literal = previous.literal.clone();
+            if literal.is_none() {
+                self.error(&previous, "Expected literal!");
+            }
+
+            Expression::Literal {
+                value: literal.unwrap(),
+            }
+        } else if self.matches(&[TokenType::Identifier]) {
+            Expression::Variable {
+                name: self.previous().clone(),
+            }
+        } else if self.matches(&[TokenType::LeftParenthesis]) {
+            let expression = self.expression();
+            self.consume(
+                TokenType::RightParenthesis,
+                "Expected ')' after expression!",
+            );
+            Expression::Grouping {
+                expression: Box::new(expression),
+            }
+        } else {
+            self.error(&self.peek().clone(), "Expected expression!");
+            Expression::Literal {
+                value: Literal::None,
+            }
+        }
+    }
+
+    fn finish_call(&mut self, callee: Expression) -> Expression {
+        let mut arguments = Vec::new();
+
+        if !self.check(&TokenType::RightParenthesis) {
+            loop {
+                if arguments.len() >= MAX_ARGUMENTS {
+                    self.error(
+                        &self.peek().clone(),
+                        &format!("Cannot have more than {} arguments.", MAX_ARGUMENTS),
+                    );
+                }
+
+                arguments.push(self.expression());
+
+                if !self.matches(&[TokenType::Comma]) {
+                    break;
+                }
+            }
+        }
+
+        let parenthesis =
+            self.consume(TokenType::RightParenthesis, "Expected ')' after arguments.");
+
+        Expression::Call {
+            callee: Box::new(callee),
+            parenthesis,
+            arguments,
+        }
+    }
+
+    fn variable_declaration(&mut self) -> Statement {
+        let name = self.consume(TokenType::Identifier, "Expected variable name.");
+
+        let initializer = if self.matches(&[TokenType::Equal]) {
+            Some(self.expression())
+        } else {
+            None
+        };
+
+        self.consume(
+            TokenType::Semicolon,
+            "Expected ';' after variable declaration.",
+        );
+
+        Statement::Variable { name, initializer }
+    }
+
+    fn function_declaration(&mut self) -> Statement {
+        let name = self.consume(TokenType::Identifier, "Expected function name.");
+        let parameters = self.function_parameters();
+        let body = self.block();
+
+        Statement::Function {
+            name,
+            parameters,
+            body,
+        }
+    }
+
+    fn function_parameters(&mut self) -> Vec<Token> {
+        self.consume(
+            TokenType::LeftParenthesis,
+            "Expected '(' after function name.",
+        );
+
+        let mut parameters = Vec::new();
+
+        if !self.check(&TokenType::RightParenthesis) {
+            loop {
+                if parameters.len() >= MAX_PARAMETERS {
+                    self.error(
+                        &self.peek().clone(),
+                        &format!("Cannot have more than {} parameters.", MAX_PARAMETERS),
+                    );
+                }
+
+                parameters.push(self.consume(TokenType::Identifier, "Expected parameter name."));
+
+                if !self.matches(&[TokenType::Comma]) {
+                    break;
+                }
+            }
+        }
+
+        self.consume(
+            TokenType::RightParenthesis,
+            "Expected ')' after parameters.",
+        );
+
+        parameters
+    }
+
+    fn block(&mut self) -> Box<Statement> {
+        let mut statements = Vec::new();
+
+        self.consume(TokenType::LeftCurlyBrace, "Expected '{' before block.");
+        while !self.check(&TokenType::RightCurlyBrace) && !self.is_at_end() {
+            statements.push(self.declaration());
+        }
+        self.consume(TokenType::RightCurlyBrace, "Expected '}' after block.");
+
+        Box::new(Statement::Block { statements })
+    }
+
+    fn statement(&mut self) -> Box<Statement> {
+        if self.matches(&[TokenType::Print]) {
+            self.print_statement()
+        } else if self.matches(&[TokenType::Return]) {
+            self.return_statement()
+        } else if self.matches(&[TokenType::If]) {
+            self.if_statement()
+        } else if self.matches(&[TokenType::While]) {
+            self.while_statement()
+        } else if self.matches(&[TokenType::For]) {
+            self.for_statement()
+        } else if self.matches(&[TokenType::Break]) {
+            self.break_statement()
+        } else if self.matches(&[TokenType::Continue]) {
+            self.continue_statement()
+        } else if self.matches(&[TokenType::LeftCurlyBrace]) {
+            Box::new(*self.block())
+        } else {
+            self.expression_statement()
+        }
+    }
+
+    fn print_statement(&mut self) -> Box<Statement> {
+        let value = self.expression();
+        self.consume(TokenType::Semicolon, "Expected ';' after value.");
+
+        Box::new(Statement::Print(value))
+    }
+
+    fn return_statement(&mut self) -> Box<Statement> {
+        let keyword = self.previous().clone();
+        let value = if !self.check(&TokenType::Semicolon) {
+            self.expression()
+        } else {
+            Expression::Literal {
+                value: Literal::None,
+            }
+        };
+        self.consume(TokenType::Semicolon, "Expected ';' after return value.");
+
+        Box::new(Statement::Return {
+            keyword,
+            value: Some(value),
+        })
+    }
+
+    fn if_statement(&mut self) -> Box<Statement> {
+        self.consume(TokenType::LeftParenthesis, "Expected '(' after 'if'.");
+        let condition = self.expression();
+        self.consume(
+            TokenType::RightParenthesis,
+            "Expected ')' after if condition.",
+        );
+
+        let then_branch = self.statement();
+        let else_branch = if self.matches(&[TokenType::Else]) {
+            Some(self.statement())
+        } else {
+            None
+        };
+
+        Box::new(Statement::If {
+            condition,
+            then_branch,
+            else_branch,
+        })
+    }
+
+    fn while_statement(&mut self) -> Box<Statement> {
+        self.consume(TokenType::LeftParenthesis, "Expected '(' after 'while'.");
+        let condition = self.expression();
+        self.consume(
+            TokenType::RightParenthesis,
+            "Expected ')' after while condition.",
+        );
+
+        let body = self.statement();
+
+        Box::new(Statement::While { condition, body })
+    }
+
+    fn for_statement(&mut self) -> Box<Statement> {
+        self.consume(TokenType::LeftParenthesis, "Expected '(' after 'for'.");
+
+        // We need an _initializer, but it can be empty.
+        // An _initializer can be a variable declaration or an expression statement.
+        // It basically means that we can have a variable declaration, an expression, or nothing.
+        let initializer = if self.matches(&[TokenType::Semicolon]) {
+            None
+        } else if self.matches(&[TokenType::Variable]) {
+            Some(self.variable_declaration())
+        } else {
+            Some(*self.expression_statement())
+        };
+
+        if let Some(_initializer) = &initializer {
+            self.consume(TokenType::Semicolon, "Expected ';' after for _initializer.");
+        }
+
+        // We need a _condition, but it can be empty.
+        // A _condition can be an expression or nothing.
+        let condition = if !self.check(&TokenType::Semicolon) {
+            Some(self.expression())
+        } else {
+            None
+        };
+
+        // Evaluate the _condition, but don't consume the semicolon.
+        // We need to consume the semicolon in the increment clause.
+        if let Some(_condition) = &condition {
+            self.consume(TokenType::Semicolon, "Expected ';' after loop _condition.");
+        }
+
+        let increment = if !self.check(&TokenType::RightParenthesis) {
+            Some(self.expression())
+        } else {
+            None
+        };
+
+        self.consume(
+            TokenType::RightParenthesis,
+            "Expected ')' after for clauses.",
+        );
+
+        let mut body = self.statement();
+
+        if let Some(increment) = increment {
+            body = Box::new(Statement::Block {
+                statements: vec![*body, Statement::Expression(increment)],
+            });
+        }
+
+        body
+    }
+
+    fn break_statement(&mut self) -> Box<Statement> {
+        let keyword = self.previous().clone();
+        self.consume(TokenType::Semicolon, "Expected ';' after 'break'.");
+
+        Box::new(Statement::Break { keyword })
+    }
+
+    fn continue_statement(&mut self) -> Box<Statement> {
+        let keyword = self.previous().clone();
+        self.consume(TokenType::Semicolon, "Expected ';' after 'continue'.");
+
+        Box::new(Statement::Continue { keyword })
+    }
+
+    fn expression_statement(&mut self) -> Box<Statement> {
+        let value = self.expression();
+        self.consume(TokenType::Semicolon, "Expected ';' after expression.");
+
+        Box::new(Statement::Expression(value))
+    }
+
+    fn consume(&mut self, token_type: TokenType, message: &str) -> Token {
+        if self.check(&token_type) {
+            self.advance().clone()
+        } else {
+            let token = self.peek().clone();
+            self.error(&token, message);
+
+            token
+        }
+    }
+
+    fn peek(&self) -> &Token {
+        &self.tokens[self.current]
+    }
+
     fn is_at_end(&self) -> bool {
         self.peek().token_type == TokenType::EndOfFile
     }
 
-    /// Peeks at the next token.
-    ///
-    /// # Returns
-    /// The next token.
-    fn peek(&self) -> Token {
-        self.tokens[self.current].clone()
-    }
-
-    /// Finds the previous token in the list.
-    ///
-    /// # Returns
-    /// The previous token.
-    fn previous(&self) -> Token {
-        self.tokens[self.current - 1].clone()
-    }
-
-    /// Finds the token `n` tokens back in the list.
-    ///
-    /// # Arguments
-    /// * `n` - The number of tokens back to go.
-    ///
-    /// # Returns
-    /// The token `n` tokens back.
-    fn backward(&self, n: usize) -> Token {
-        if self.current < n {
-            self.tokens[0].clone()
+    fn check(&self, token_type: &TokenType) -> bool {
+        if self.is_at_end() {
+            false
         } else {
-            self.tokens[self.current - n].clone()
+            self.peek().token_type == *token_type
         }
     }
 
-    /// Finds the token `n` tokens forward in the list.
-    ///
-    /// # Arguments
-    /// * `n` - The number of tokens forward to go.
-    ///
-    /// # Returns
-    /// The token `n` tokens forward.
-    fn forward(&self, n: usize) -> Token {
-        if self.current + n >= self.tokens.len() {
-            self.tokens[self.tokens.len() - 1].clone()
-        } else {
-            self.tokens[self.current + n].clone()
-        }
-    }
-
-    /// Advances to the next token.
-    ///
-    /// # Returns
-    /// The previous token before advancing.
-    fn advance(&mut self) -> Token {
+    fn advance(&mut self) -> &Token {
         if !self.is_at_end() {
             self.current += 1;
         }
@@ -194,13 +663,10 @@ impl Parser {
         self.previous()
     }
 
-    /// Checks if the current token matches the given type.
-    ///
-    /// # Arguments
-    /// * `token_type` - The token type to check.
-    ///
-    /// # Returns
-    /// True if the current token matches the given type, false otherwise.
+    fn previous(&self) -> &Token {
+        &self.tokens[self.current - 1]
+    }
+
     fn matches(&mut self, types: &[TokenType]) -> bool {
         for token_type in types {
             if self.check(token_type) {
@@ -212,784 +678,15 @@ impl Parser {
         false
     }
 
-    /// Checks if the current token matches the given type.
-    ///
-    /// # Arguments
-    /// * `token_type` - The token type to check.
-    ///
-    /// # Returns
-    /// True if the current token matches the given type, false otherwise.
-    fn check(&self, token_type: &TokenType) -> bool {
-        if self.is_at_end() {
-            return false;
-        }
-
-        self.peek().token_type == *token_type
-    }
-
-    /// Consumes the current token if it matches the given type.
-    ///
-    /// # Arguments
-    /// * `token_type` - The token type to check.
-    /// * `message` - The error message to display if the token doesn't match.
-    ///
-    /// # Returns
-    /// The consumed token as a result.
-    fn consume(&mut self, token_type: TokenType, message: &str) -> Result<Token, Box<Error>> {
-        if self.check(&token_type) {
-            Ok(self.advance())
+    fn error(&mut self, token: &Token, message: &str) {
+        if token.token_type == TokenType::EndOfFile {
+            report(token.line, token.column, &format!("{} at end", message));
         } else {
-            Err(Error::UnexpectedToken {
-                token: self.peek(),
-                expected: vec![token_type],
-                message: message.to_string(),
-            })?
+            report(
+                token.line,
+                token.column,
+                &format!("{} at '{}'", token.lexeme, message),
+            );
         }
-    }
-
-    /// Creates a new parser from the given tokens.
-    ///
-    /// # Arguments
-    /// * `tokens` - The tokens to parse.
-    ///
-    /// # Returns
-    /// The new parser instance.
-    pub fn new(tokens: &[Token]) -> Self {
-        Self {
-            tokens: tokens.to_vec(),
-            current: 0,
-        }
-    }
-
-    /// Parses the tokens into a list of statements.
-    ///
-    /// # Returns
-    /// The list of statements.
-    pub fn parse(&mut self) -> Result<Vec<Stmt>, Box<Error>> {
-        let mut statements = Vec::new();
-
-        while !self.is_at_end() {
-            statements.push(self.declaration()?);
-        }
-
-        Ok(statements)
-    }
-
-    /// Parses a declaration statement.
-    ///
-    /// # Returns
-    /// The declaration statement as a result.
-    fn declaration(&mut self) -> Result<Stmt, Box<Error>> {
-        if self.matches(&[TokenType::Variable]) {
-            self.variable_declaration()
-        } else if self.matches(&[TokenType::Function]) {
-            self.function_declaration()
-        } else {
-            self.statement()
-        }
-    }
-
-    /// Parses a variable declaration statement.
-    ///
-    /// # Returns
-    /// The variable declaration statement as a result.
-    fn variable_declaration(&mut self) -> Result<Stmt, Box<Error>> {
-        let name = self.consume(
-            TokenType::Identifier,
-            &format!(
-                "Expected variable name! ({}:{})",
-                self.previous().line,
-                self.previous().column
-            ),
-        )?;
-
-        let initializer = if self.matches(&[TokenType::Equal]) {
-            Some(self.expression()?)
-        } else {
-            None
-        };
-
-        self.consume(
-            TokenType::Semicolon,
-            &format!(
-                "Expected ';' after variable declaration! ({}:{})",
-                self.previous().line,
-                self.previous().column
-            ),
-        )?;
-
-        Ok(Stmt::Variable { name, initializer })
-    }
-
-    /// Parses a function declaration statement.
-    ///
-    /// # Returns
-    /// The function declaration statement as a result.
-    fn function_declaration(&mut self) -> Result<Stmt, Box<Error>> {
-        let name = self.consume(
-            TokenType::Identifier,
-            &format!(
-                "Expected function name! ({}:{})",
-                self.previous().line,
-                self.previous().column
-            ),
-        )?;
-
-        self.consume(
-            TokenType::LeftParenthesis,
-            &format!(
-                "Expected '(' after function name! ({}:{})",
-                self.previous().line,
-                self.previous().column
-            ),
-        )?;
-
-        let mut parameters = Vec::new();
-        if !self.check(&TokenType::RightParenthesis) {
-            loop {
-                if parameters.len() >= MAX_PARAMS {
-                    return Err(Error::TooManyParameters {
-                        parenthesis: self.previous(),
-                        message: format!(
-                            "Cannot have more than {} parameters! ({}:{})",
-                            MAX_PARAMS,
-                            self.previous().line,
-                            self.previous().column
-                        ),
-                    })?;
-                }
-
-                parameters.push(self.consume(
-                    TokenType::Identifier,
-                    &format!(
-                        "Expected parameter name! ({}:{})",
-                        self.previous().line,
-                        self.previous().column
-                    ),
-                )?);
-
-                if !self.matches(&[TokenType::Comma]) {
-                    break;
-                }
-            }
-        }
-
-        self.consume(
-            TokenType::RightParenthesis,
-            &format!(
-                "Expected ')' after function parameters! ({}:{})",
-                self.previous().line,
-                self.previous().column
-            ),
-        )?;
-        self.consume(
-            TokenType::LeftCurlyBrace,
-            &format!(
-                "Expected '{{' before function body! ({}:{})",
-                self.previous().line,
-                self.previous().column
-            ),
-        )?;
-
-        let body = self.block()?;
-
-        Ok(Stmt::Function {
-            name,
-            parameters,
-            body: Box::new(Stmt::Block { statements: body }),
-        })
-    }
-
-    /// Parses a statement.
-    ///
-    /// # Returns
-    /// The statement as a result.
-    fn statement(&mut self) -> Result<Stmt, Box<Error>> {
-        if self.matches(&[TokenType::LeftCurlyBrace]) {
-            Ok(Stmt::Block {
-                statements: self.block()?,
-            })
-        } else if self.matches(&[TokenType::If]) {
-            self.if_statement()
-        } else if self.matches(&[TokenType::While]) {
-            self.while_statement()
-        } else if self.matches(&[TokenType::For]) {
-            self.for_statement()
-        } else if self.matches(&[TokenType::Return]) {
-            self.return_statement()
-        } else {
-            self.expression_statement()
-        }
-    }
-
-    /// Parses an expression.
-    ///
-    /// # Returns
-    /// The expression as a result.
-    fn expression(&mut self) -> Result<Expr, Box<Error>> {
-        self.assignment()
-    }
-
-    /// Parses an assignment expression.
-    ///
-    /// # Returns
-    /// The assignment expression as a result.
-    fn assignment(&mut self) -> Result<Expr, Box<Error>> {
-        let expr = self.or()?;
-
-        if self.matches(&[TokenType::Equal]) {
-            let equals = self.previous();
-            let value = self.assignment()?;
-
-            if let Expr::Variable { name } = expr {
-                return Ok(Expr::Assign {
-                    name,
-                    value: Box::new(value),
-                });
-            }
-
-            return Err(Error::InvalidAssignment {
-                token: equals.clone(),
-                message: format!(
-                    "Invalid assignment target! ({}:{})",
-                    equals.line, equals.column
-                ),
-            })?;
-        }
-
-        Ok(expr)
-    }
-
-    /// Parses an `or` expression.
-    ///
-    /// # Returns
-    /// The `or` expression as a result.
-    fn or(&mut self) -> Result<Expr, Box<Error>> {
-        let mut expr = self.and()?;
-
-        while self.matches(&[TokenType::LogicalOr]) {
-            let operator = self.previous();
-            let right = self.and()?;
-
-            expr = Expr::Logical {
-                left: Box::new(expr),
-                operator,
-                right: Box::new(right),
-            };
-        }
-
-        Ok(expr)
-    }
-
-    /// Parses an `and` expression.
-    ///
-    /// # Returns
-    /// The `and` expression as a result.
-    fn and(&mut self) -> Result<Expr, Box<Error>> {
-        let mut expr = self.equality()?;
-
-        while self.matches(&[TokenType::LogicalAnd]) {
-            let operator = self.previous();
-            let right = self.equality()?;
-
-            expr = Expr::Logical {
-                left: Box::new(expr),
-                operator,
-                right: Box::new(right),
-            };
-        }
-
-        Ok(expr)
-    }
-
-    /// Parses an `equality` expression.
-    ///
-    /// # Returns
-    /// The `equality` expression as a result.
-    fn equality(&mut self) -> Result<Expr, Box<Error>> {
-        let mut expr = self.comparison()?;
-
-        while self.matches(&[TokenType::BangEqual, TokenType::EqualEqual]) {
-            let operator = self.previous();
-            let right = self.comparison()?;
-
-            expr = Expr::Binary {
-                left: Box::new(expr),
-                operator,
-                right: Box::new(right),
-            };
-        }
-
-        Ok(expr)
-    }
-
-    /// Parses a `comparison` expression.
-    ///
-    /// # Returns
-    /// The `comparison` expression as a result.
-    fn comparison(&mut self) -> Result<Expr, Box<Error>> {
-        let mut expr = self.term()?;
-
-        while self.matches(&[
-            TokenType::GreaterThan,
-            TokenType::GreaterThanOrEqual,
-            TokenType::LessThan,
-            TokenType::LessThanOrEqual,
-        ]) {
-            let operator = self.previous();
-            let right = self.term()?;
-
-            expr = Expr::Binary {
-                left: Box::new(expr),
-                operator,
-                right: Box::new(right),
-            };
-        }
-
-        Ok(expr)
-    }
-
-    /// Parses a `term` expression.
-    ///
-    /// # Returns
-    /// The `term` expression as a result.
-    fn term(&mut self) -> Result<Expr, Box<Error>> {
-        let mut expr = self.factor()?;
-
-        while self.matches(&[TokenType::Minus, TokenType::Plus]) {
-            let operator = self.previous();
-            let right = self.factor()?;
-
-            expr = Expr::Binary {
-                left: Box::new(expr),
-                operator,
-                right: Box::new(right),
-            };
-        }
-
-        Ok(expr)
-    }
-
-    /// Parses a `factor` expression.
-    ///
-    /// # Returns
-    /// The `factor` expression as a result.
-    fn factor(&mut self) -> Result<Expr, Box<Error>> {
-        let mut expr = self.unary()?;
-
-        while self.matches(&[TokenType::Slash, TokenType::Star]) {
-            let operator = self.previous();
-            let right = self.unary()?;
-
-            expr = Expr::Binary {
-                left: Box::new(expr),
-                operator,
-                right: Box::new(right),
-            };
-        }
-
-        Ok(expr)
-    }
-
-    /// Parses a `unary` expression.
-    ///
-    /// # Returns
-    /// The `unary` expression as a result.
-    fn unary(&mut self) -> Result<Expr, Box<Error>> {
-        if self.matches(&[TokenType::Bang, TokenType::Minus]) {
-            let operator = self.previous();
-            let right = self.unary()?;
-
-            return Ok(Expr::Unary {
-                operator,
-                right: Box::new(right),
-            });
-        }
-
-        self.call()
-    }
-
-    /// Parses a `call` expression.
-    ///
-    /// # Returns
-    /// The `call` expression as a result.
-    fn call(&mut self) -> Result<Expr, Box<Error>> {
-        let mut expr = self.primary()?;
-
-        loop {
-            if self.matches(&[TokenType::LeftParenthesis]) {
-                expr = self.finish_call(expr)?;
-            } else {
-                break;
-            }
-        }
-
-        Ok(expr)
-    }
-
-    /// Parses a `finish_call` expression.
-    ///
-    /// # Returns
-    /// The `finish call` expression as a result.
-    fn finish_call(&mut self, callee: Expr) -> Result<Expr, Box<Error>> {
-        let mut arguments = Vec::new();
-        self.load_arguments(&mut arguments)?;
-
-        // Advance to the closing parenthesis.
-        let paren = self.consume(
-            TokenType::RightParenthesis,
-            &format!(
-                "Expected ')' after function arguments! ({}:{})",
-                self.peek().line,
-                self.peek().column
-            ),
-        )?;
-
-        Ok(Expr::Call {
-            callee: Box::new(callee),
-            parenthesis: paren,
-            arguments,
-        })
-    }
-
-    /// Parses a `primary` expression.
-    ///
-    /// # Returns
-    /// The `primary` expression as a result.
-    fn primary(&mut self) -> Result<Expr, Box<Error>> {
-        if self.matches(&[TokenType::False]) {
-            return Ok(Expr::Literal {
-                value: Literal::Boolean(false),
-            });
-        }
-
-        if self.matches(&[TokenType::True]) {
-            return Ok(Expr::Literal {
-                value: Literal::Boolean(true),
-            });
-        }
-
-        if self.matches(&[TokenType::None]) {
-            return Ok(Expr::Literal {
-                value: Literal::None,
-            });
-        }
-
-        if self.matches(&[TokenType::Number]) {
-            return Ok(Expr::Literal {
-                value: Literal::Number(self.previous().lexeme.parse().unwrap()),
-            });
-        }
-
-        if self.matches(&[TokenType::String]) {
-            return Ok(Expr::Literal {
-                value: Literal::String(self.previous().lexeme),
-            });
-        }
-
-        // Function calls.
-        if self.matches(&[TokenType::Identifier]) {
-            if self.peek().token_type != TokenType::LeftParenthesis {
-                return Err(Error::UnexpectedToken {
-                    token: self.peek(),
-                    expected: vec![TokenType::LeftParenthesis],
-                    message: format!(
-                        "Expected '(' after function name! ({}:{})",
-                        self.peek().line,
-                        self.peek().column
-                    ),
-                })?;
-            }
-
-            // It's likely to be an argument if it's another identifier.
-            if self.peek().token_type == TokenType::Identifier {
-                // Handle the argument.
-                return Ok(Expr::Variable {
-                    name: self.advance(),
-                });
-            }
-
-            // Load the arguments.
-            let mut arguments = Vec::new();
-            self.load_arguments(&mut arguments)?;
-
-            let name = self.backward(arguments.len());
-
-            // Advance to the closing parenthesis.
-            let paren = self.consume(
-                TokenType::RightParenthesis,
-                &format!(
-                    "Expected ')' after function arguments! ({}:{})",
-                    self.peek().line,
-                    self.peek().column
-                ),
-            )?;
-
-            return Ok(Expr::Call {
-                callee: Box::new(Expr::Variable { name }),
-                parenthesis: paren,
-                arguments,
-            });
-        }
-
-        Err(Error::UnexpectedToken {
-            token: self.peek(),
-            expected: vec![
-                TokenType::False,
-                TokenType::True,
-                TokenType::None,
-                TokenType::Number,
-                TokenType::String,
-                TokenType::Identifier,
-            ],
-            message: format!(
-                "Expected expression! ({}:{})",
-                self.peek().line,
-                self.peek().column
-            ),
-        })?
-    }
-
-    /// Parses a block statement.
-    ///
-    /// # Returns
-    /// The `block` statement as a result.
-    fn block(&mut self) -> Result<Vec<Stmt>, Box<Error>> {
-        let mut statements = Vec::new();
-
-        while !self.check(&TokenType::RightCurlyBrace) && !self.is_at_end() {
-            statements.push(self.declaration()?);
-        }
-
-        self.consume(
-            TokenType::RightCurlyBrace,
-            &format!(
-                "Expected '}}' after block! ({}:{})",
-                self.peek().line,
-                self.peek().column
-            ),
-        )?;
-
-        Ok(statements)
-    }
-
-    /// Parse an `expression` statement.
-    ///
-    /// # Returns
-    /// The `expression` statement as a result.
-    fn expression_statement(&mut self) -> Result<Stmt, Box<Error>> {
-        let expr = self.expression()?;
-        self.consume(
-            TokenType::Semicolon,
-            &format!(
-                "Expected ';' after expression! ({}:{})",
-                self.peek().line,
-                self.peek().column
-            ),
-        )?;
-
-        Ok(Stmt::Expression { expression: expr })
-    }
-
-    /// Parse an `if` statement.
-    ///
-    /// # Returns
-    /// The `if` statement as a result.
-    fn if_statement(&mut self) -> Result<Stmt, Box<Error>> {
-        self.consume(
-            TokenType::LeftParenthesis,
-            &format!(
-                "Expected '(' after 'if'! ({}:{})",
-                self.peek().line,
-                self.peek().column
-            ),
-        )?;
-        let condition = self.expression()?;
-        self.consume(
-            TokenType::RightParenthesis,
-            &format!(
-                "Expected ')' after if condition! ({}:{})",
-                self.peek().line,
-                self.peek().column
-            ),
-        )?;
-
-        let then_branch = self.statement()?;
-        let else_branch = if self.matches(&[TokenType::Else]) {
-            Some(Box::new(self.statement()?))
-        } else {
-            None
-        };
-
-        Ok(Stmt::If {
-            condition: *Box::new(condition),
-            then_branch: Box::new(then_branch),
-            else_branch,
-        })
-    }
-
-    /// Parse a `while` statement.
-    ///
-    /// # Returns
-    /// The `while` statement as a result.
-    fn while_statement(&mut self) -> Result<Stmt, Box<Error>> {
-        self.consume(
-            TokenType::LeftParenthesis,
-            &format!(
-                "Expected '(' after 'while'! ({}:{})",
-                self.peek().line,
-                self.peek().column
-            ),
-        )?;
-        let condition = self.expression()?;
-        self.consume(
-            TokenType::RightParenthesis,
-            &format!(
-                "Expected ')' after while condition! ({}:{})",
-                self.peek().line,
-                self.peek().column
-            ),
-        )?;
-
-        let body = self.statement()?;
-
-        Ok(Stmt::While {
-            condition: *Box::new(condition),
-            body: Box::new(body),
-        })
-    }
-
-    /// Parse a `for` statement.
-    ///
-    /// # Returns
-    /// The `for` statement as a result.
-    fn for_statement(&mut self) -> Result<Stmt, Box<Error>> {
-        self.consume(
-            TokenType::LeftParenthesis,
-            &format!(
-                "Expected '(' after 'for'! ({}:{})",
-                self.peek().line,
-                self.peek().column
-            ),
-        )?;
-
-        let initializer = if self.matches(&[TokenType::Semicolon]) {
-            None
-        } else if self.matches(&[TokenType::Variable]) {
-            Some(self.variable_declaration()?)
-        } else {
-            Some(self.expression_statement()?)
-        };
-
-        let condition = if !self.check(&TokenType::Semicolon) {
-            Some(self.expression()?)
-        } else {
-            None
-        };
-
-        self.consume(
-            TokenType::Semicolon,
-            &format!(
-                "Expected ';' after loop condition! ({}:{})",
-                self.peek().line,
-                self.peek().column
-            ),
-        )?;
-
-        let increment = if !self.check(&TokenType::RightParenthesis) {
-            Some(self.expression()?)
-        } else {
-            None
-        };
-
-        self.consume(
-            TokenType::RightParenthesis,
-            &format!(
-                "Expected ')' after for clauses! ({}:{})",
-                self.peek().line,
-                self.peek().column
-            ),
-        )?;
-
-        let mut body = self.statement()?;
-
-        if let Some(increment) = increment {
-            body = Stmt::Block {
-                statements: vec![
-                    body,
-                    Stmt::Expression {
-                        expression: increment,
-                    },
-                ],
-            };
-        }
-
-        body = Stmt::While {
-            condition: *Box::new(condition.unwrap_or(Expr::Literal {
-                value: Literal::Boolean(true),
-            })),
-            body: Box::new(body),
-        };
-
-        if let Some(initializer) = initializer {
-            body = Stmt::Block {
-                statements: vec![initializer, body],
-            };
-        }
-
-        Ok(body)
-    }
-
-    /// Parse a `return` statement.
-    ///
-    /// # Returns
-    /// The `return` statement as a result.
-    fn return_statement(&mut self) -> Result<Stmt, Box<Error>> {
-        let keyword = self.previous();
-        let value = if !self.check(&TokenType::Semicolon) {
-            Some(self.expression()?)
-        } else {
-            None
-        };
-
-        self.consume(
-            TokenType::Semicolon,
-            &format!(
-                "Expected ';' after return value! ({}:{})",
-                self.peek().line,
-                self.peek().column
-            ),
-        )?;
-
-        Ok(Stmt::Return { keyword, value })
-    }
-
-    fn load_arguments(&mut self, arguments: &mut Vec<Expr>) -> Result<Vec<Expr>, Box<Error>> {
-        let mut current = self.current + 1;
-
-        while self.forward(current).token_type != TokenType::RightParenthesis {
-            arguments.push(self.expression()?);
-            current += 1;
-
-            if !self.matches(&[TokenType::Comma]) {
-                break;
-            }
-        }
-
-        if arguments.len() > MAX_ARGS {
-            return Err(Error::TooManyArguments {
-                parenthesis: self.forward(current),
-                message: format!(
-                    "Too many arguments! ({}:{})",
-                    self.forward(current).line,
-                    self.forward(current).column
-                ),
-            })?;
-        }
-
-        // Update the current token.
-        self.current = current;
-
-        Ok(arguments.to_vec())
     }
 }

@@ -4,4 +4,6 @@ fn main() {
 
 fn test() {
     let text = "Hej!";
+
+    print(text);
 }

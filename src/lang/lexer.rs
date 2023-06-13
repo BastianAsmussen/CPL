@@ -1,3 +1,5 @@
+use std::fmt::{Display, Formatter};
+
 /// An enumeration of all the possible tokens in the language.
 #[derive(Debug, Clone, PartialEq)]
 pub enum TokenType {
@@ -441,18 +443,6 @@ pub enum TokenType {
     /// }
     /// ```
     If,
-    /// The 'elif' keyword.
-    /// Used for conditional statements.
-    ///
-    /// # Example
-    /// ```
-    /// if true {
-    ///     print("Hello, world!");
-    /// } elif false {
-    ///     print("Goodbye, world!");
-    /// }
-    /// ```
-    ElseIf,
     /// The 'else' keyword.
     /// Used for conditional statements.
     ///
@@ -681,6 +671,17 @@ pub enum Literal {
     Boolean(bool),
     /// A null literal.
     None,
+}
+
+impl Display for Literal {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Literal::String(string) => write!(f, "{}", string),
+            Literal::Number(number) => write!(f, "{}", number),
+            Literal::Boolean(boolean) => write!(f, "{}", boolean),
+            Literal::None => write!(f, "none"),
+        }
+    }
 }
 
 /// Representation of a token, with its type, lexeme, literal, line, and column.
@@ -1096,7 +1097,6 @@ impl Scanner {
         let token_type = match text.as_str() {
             "fn" => TokenType::Function,
             "if" => TokenType::If,
-            "elif" => TokenType::ElseIf,
             "else" => TokenType::Else,
             "switch" => TokenType::Switch,
             "case" => TokenType::Case,

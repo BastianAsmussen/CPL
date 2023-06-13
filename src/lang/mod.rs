@@ -2,9 +2,14 @@ use std::io::Write;
 
 use crate::util::timer::{format_time, Timer};
 
-pub mod analyzer;
+pub mod errors;
 pub mod lexer;
 pub mod parser;
+
+/// The maximum number of parameters a function can have.
+pub const MAX_PARAMETERS: usize = 255;
+/// The maximum number of arguments a function can take.
+pub const MAX_ARGUMENTS: usize = 255;
 
 /// A struct representing a CPL program.
 pub struct Cpl {
@@ -68,7 +73,6 @@ impl Cpl {
         println!("Syntax tree:\n{:#?}", syntax_tree);
         println!("Parsing took {}.", format_time(time));
 
-        // Check for errors.
         if syntax_tree.is_err() {
             self.had_error = true;
             return;
