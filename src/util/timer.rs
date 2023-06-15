@@ -7,9 +7,7 @@ pub struct Timer {
 impl Timer {
     /// Creates a new timer with no times recorded.
     pub fn new() -> Self {
-        Self {
-            times: Vec::new(),
-        }
+        Self { times: Vec::new() }
     }
 
     /// Time a function and return the elapsed time in nanoseconds and the result of the function call as a tuple.
@@ -34,8 +32,8 @@ impl Timer {
     /// println!("Result of function call: {}", result);
     /// ```
     pub fn time<F, R>(&mut self, function: F) -> (u128, R)
-        where
-            F: FnOnce() -> R,
+    where
+        F: FnOnce() -> R,
     {
         let start = std::time::Instant::now();
         let result = function();
@@ -76,21 +74,6 @@ impl Timer {
     /// println!("Total Time: {} nanoseconds.", timer.total_time());
     pub fn total_time(&self) -> u128 {
         self.times.iter().sum()
-    }
-
-    /// Get the average time elapsed by a timer.
-    pub fn average_time(&self) -> u128 {
-        self.total_time() / self.times.len() as u128
-    }
-
-    /// Get the minimum time elapsed by a timer.
-    pub fn min_time(&self) -> u128 {
-        *self.times.iter().min().unwrap()
-    }
-
-    /// Get the maximum time elapsed by a timer.
-    pub fn max_time(&self) -> u128 {
-        *self.times.iter().max().unwrap()
     }
 }
 
@@ -210,6 +193,12 @@ pub fn format_time(nanos: u128) -> String {
         if nanos > 1 {
             result.push('s');
         }
+    }
+
+    // Add an "and" to the final unit if there are multiple units.
+    if result.matches(',').count() > 1 {
+        let last_comma = result.rfind(',').unwrap();
+        result.insert_str(last_comma + 1, " and");
     }
 
     result

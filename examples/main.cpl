@@ -1,7 +1,8 @@
 fn main() {
-    test();
-}
+    let a = 5;
+    let b = 10;
 
-fn test() {
-    let text = "Hej!";
+    let c = a + b;
+
+    print(a + " + " + b + " = " + c);
 }
