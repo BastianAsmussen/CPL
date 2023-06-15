@@ -13,8 +13,10 @@ I will refer to [this article](https://www.geeksforgeeks.org/semantic-analysis-i
 GeeksForGeeks for the semantic analysis.
 
 CPL will be a compiled language, and I'll be using Rust to write it!
-I've decided to use [LLVM](https://llvm.org/) as my backend,
-and I will be using [Inkwell](https://github.com/TheDan64/inkwell) as my LLVM wrapper.
+Scratched the idea of using LLVM, for one it has a huge learning curb,
+and I was also having difficulty making it work in Rust,
+so I'll just create a CodeGen from scratch instead, or I'll try.
+I've finished my lexer and parser, and I'm working on CodeGen now, which is going to be the hardest part I think.
 
 # Syntax
 
