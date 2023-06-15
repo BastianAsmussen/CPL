@@ -1,7 +1,7 @@
 use std::fmt::{Display, Formatter};
 
 /// An enumeration of all the possible tokens in the language.
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub enum TokenType {
     // Single-character tokens.
     /// A left parenthesis token.
@@ -647,14 +647,6 @@ pub enum TokenType {
     /// const a = 6;
     /// ```
     Constant,
-    /// The primitive type tokens.
-    /// Indicates the type of a variable, function parameter, or function return type as long as it is a primitive type.
-    ///
-    /// # Example
-    /// ```
-    /// let a: i32 = 6;
-    /// ```
-    PrimitiveType,
 
     /// Used to represent the end of a file.
     EndOfFile,
@@ -673,6 +665,10 @@ pub enum Literal {
     None,
 }
 
+impl Eq for Literal {
+    fn assert_receiver_is_total_eq(&self) {}
+}
+
 impl Display for Literal {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         match self {
@@ -685,7 +681,7 @@ impl Display for Literal {
 }
 
 /// Representation of a token, with its type, lexeme, literal, line, and column.
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Token {
     pub token_type: TokenType,
     pub lexeme: String,
@@ -1114,8 +1110,6 @@ impl Scanner {
             "return" => TokenType::Return,
             "let" => TokenType::Variable,
             "const" => TokenType::Constant,
-            "i8" | "i16" | "i32" | "i64" | "u8" | "u16" | "u32" | "u64" | "f32" | "f64"
-            | "bool" | "char" | "str" => TokenType::PrimitiveType,
             _ => TokenType::Identifier,
         };
 

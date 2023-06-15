@@ -3,6 +3,7 @@ use std::io::Write;
 use crate::util::timer::{format_time, Timer};
 
 pub mod errors;
+pub mod generator;
 pub mod lexer;
 pub mod parser;
 
@@ -77,6 +78,14 @@ impl Cpl {
             self.had_error = true;
             return;
         }
+
+        // Generate the assembly code.
+        //println!("Generating code...");
+        //let (time, assembly) =
+        //    timer.time(|| generator::Generator::new(syntax_tree.unwrap()).generate());
+
+        //println!("Assembly:\n{}", assembly);
+        //println!("Code generation took {}.", format_time(time));
 
         println!("Total time: {}.", format_time(timer.total_time()));
     }

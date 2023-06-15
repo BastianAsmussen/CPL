@@ -1,7 +1,8 @@
+use std::fmt::{Display, Formatter};
+
 use crate::lang::errors::{report, Error};
 use crate::lang::lexer::{Literal, Token, TokenType};
 use crate::lang::{MAX_ARGUMENTS, MAX_PARAMETERS};
-use std::fmt::Display;
 
 /// An expression is a piece of code that evaluates to a value.
 #[derive(Debug, Clone)]
@@ -11,19 +12,13 @@ pub enum Expression {
         operator: Token,
         right: Box<Expression>,
     },
-    Grouping {
-        expression: Box<Expression>,
-    },
-    Literal {
-        value: Literal,
-    },
+    Grouping(Box<Expression>),
+    Literal(Literal),
     Unary {
         operator: Token,
         right: Box<Expression>,
     },
-    Variable {
-        name: Token,
-    },
+    Variable(Token),
     Assign {
         name: Token,
         value: Box<Expression>,
@@ -36,7 +31,7 @@ pub enum Expression {
 }
 
 impl Display for Expression {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         match self {
             Expression::Binary {
                 left,
@@ -45,10 +40,10 @@ impl Display for Expression {
             } => {
                 write!(f, "({} {} {})", operator.lexeme, left, right)
             }
-            Expression::Grouping { expression } => write!(f, "(group {})", expression),
-            Expression::Literal { value } => write!(f, "{}", value),
+            Expression::Grouping(expression) => write!(f, "(group {})", expression),
+            Expression::Literal(value) => write!(f, "{}", value),
             Expression::Unary { operator, right } => write!(f, "({} {})", operator.lexeme, right),
-            Expression::Variable { name } => write!(f, "{}", name.lexeme),
+            Expression::Variable(name) => write!(f, "{}", name.lexeme),
             Expression::Assign { name, value } => write!(f, "(= {} {})", name.lexeme, value),
             Expression::Call {
                 callee,
@@ -80,9 +75,7 @@ pub enum Statement {
         name: Token,
         initializer: Option<Expression>,
     },
-    Block {
-        statements: Vec<Statement>,
-    },
+    Block(Vec<Statement>),
     If {
         condition: Expression,
         then_branch: Box<Statement>,
@@ -94,7 +87,7 @@ pub enum Statement {
     },
     Function {
         name: Token,
-        parameters: Vec<Token>,
+        parameters: Vec<(Token, Token)>,
         body: Box<Statement>,
     },
     Return {
@@ -107,6 +100,75 @@ pub enum Statement {
     Continue {
         keyword: Token,
     },
+}
+
+impl Display for Statement {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Statement::Expression(expression) => write!(f, "{}", expression),
+            Statement::Print(expression) => write!(f, "(print {})", expression),
+            Statement::Variable { name, initializer } => {
+                if let Some(initializer) = initializer {
+                    write!(f, "(var {} {})", name.lexeme, initializer)
+                } else {
+                    write!(f, "(var {})", name.lexeme)
+                }
+            }
+            Statement::Block(statements) => {
+                write!(f, "(block ")?;
+
+                for (i, statement) in statements.iter().enumerate() {
+                    write!(f, "{}", statement)?;
+
+                    if i != statements.len() - 1 {
+                        write!(f, " ")?;
+                    }
+                }
+
+                write!(f, ")")
+            }
+            Statement::If {
+                condition,
+                then_branch,
+                else_branch,
+            } => {
+                write!(f, "(if {} {} ", condition, then_branch)?;
+
+                if let Some(else_branch) = else_branch {
+                    write!(f, "{}", else_branch)?;
+                }
+
+                write!(f, ")")
+            }
+            Statement::While { condition, body } => write!(f, "(while {} {})", condition, body),
+            Statement::Function {
+                name,
+                parameters,
+                body,
+            } => {
+                write!(f, "(fn {}(", name.lexeme)?;
+
+                for (i, (parameter, _)) in parameters.iter().enumerate() {
+                    write!(f, "{}", parameter.lexeme)?;
+
+                    if i != parameters.len() - 1 {
+                        write!(f, ", ")?;
+                    }
+                }
+
+                write!(f, ") {})", body)
+            }
+            Statement::Return { keyword, value } => {
+                if let Some(value) = value {
+                    write!(f, "(ret {} {})", keyword.lexeme, value)
+                } else {
+                    write!(f, "(ret {})", keyword.lexeme)
+                }
+            }
+            Statement::Break { keyword } => write!(f, "(break {})", keyword.lexeme),
+            Statement::Continue { keyword } => write!(f, "(continue {})", keyword.lexeme),
+        }
+    }
 }
 
 impl Iterator for Box<Statement> {
@@ -174,7 +236,7 @@ impl Parser {
             let value = self.assignment();
 
             match expression {
-                Expression::Variable { name } => {
+                Expression::Variable(name) => {
                     return Expression::Assign {
                         name,
                         value: Box::new(value),
@@ -326,17 +388,11 @@ impl Parser {
 
     fn primary(&mut self) -> Expression {
         if self.matches(&[TokenType::False]) {
-            Expression::Literal {
-                value: Literal::Boolean(false),
-            }
+            Expression::Literal(Literal::Boolean(false))
         } else if self.matches(&[TokenType::True]) {
-            Expression::Literal {
-                value: Literal::Boolean(true),
-            }
+            Expression::Literal(Literal::Boolean(true))
         } else if self.matches(&[TokenType::None]) {
-            Expression::Literal {
-                value: Literal::None,
-            }
+            Expression::Literal(Literal::None)
         } else if self.matches(&[TokenType::Number, TokenType::String]) {
             let previous = self.previous().clone();
             let literal = previous.literal.clone();
@@ -344,27 +400,19 @@ impl Parser {
                 self.error(&previous, "Expected literal!");
             }
 
-            Expression::Literal {
-                value: literal.unwrap(),
-            }
+            Expression::Literal(literal.unwrap())
         } else if self.matches(&[TokenType::Identifier]) {
-            Expression::Variable {
-                name: self.previous().clone(),
-            }
+            Expression::Variable(self.previous().clone())
         } else if self.matches(&[TokenType::LeftParenthesis]) {
             let expression = self.expression();
             self.consume(
                 TokenType::RightParenthesis,
                 "Expected ')' after expression!",
             );
-            Expression::Grouping {
-                expression: Box::new(expression),
-            }
+            Expression::Grouping(Box::new(expression))
         } else {
             self.error(&self.peek().clone(), "Expected expression!");
-            Expression::Literal {
-                value: Literal::None,
-            }
+            Expression::Literal(Literal::None)
         }
     }
 
@@ -427,7 +475,7 @@ impl Parser {
         }
     }
 
-    fn function_parameters(&mut self) -> Vec<Token> {
+    fn function_parameters(&mut self) -> Vec<(Token, Token)> {
         self.consume(
             TokenType::LeftParenthesis,
             "Expected '(' after function name.",
@@ -444,7 +492,17 @@ impl Parser {
                     );
                 }
 
-                parameters.push(self.consume(TokenType::Identifier, "Expected parameter name."));
+                let identifier = self.consume(TokenType::Identifier, "Expected parameter name.");
+                let r#type = if self.matches(&[TokenType::Colon]) {
+                    Some(self.consume(TokenType::Identifier, "Expected type name."))
+                } else {
+                    None
+                };
+                if r#type.is_none() {
+                    self.error(&self.peek().clone(), "Expected type name.");
+                }
+
+                parameters.push((identifier, r#type.unwrap()));
 
                 if !self.matches(&[TokenType::Comma]) {
                     break;
@@ -469,7 +527,7 @@ impl Parser {
         }
         self.consume(TokenType::RightCurlyBrace, "Expected '}' after block.");
 
-        Box::new(Statement::Block { statements })
+        Box::new(Statement::Block(statements))
     }
 
     fn statement(&mut self) -> Box<Statement> {
@@ -506,9 +564,7 @@ impl Parser {
         let value = if !self.check(&TokenType::Semicolon) {
             self.expression()
         } else {
-            Expression::Literal {
-                value: Literal::None,
-            }
+            Expression::Literal(Literal::None)
         };
         self.consume(TokenType::Semicolon, "Expected ';' after return value.");
 
@@ -556,8 +612,8 @@ impl Parser {
     fn for_statement(&mut self) -> Box<Statement> {
         self.consume(TokenType::LeftParenthesis, "Expected '(' after 'for'.");
 
-        // We need an _initializer, but it can be empty.
-        // An _initializer can be a variable declaration or an expression statement.
+        // We need an initializer, but it can be empty.
+        // An initializer can be a variable declaration or an expression statement.
         // It basically means that we can have a variable declaration, an expression, or nothing.
         let initializer = if self.matches(&[TokenType::Semicolon]) {
             None
@@ -568,21 +624,21 @@ impl Parser {
         };
 
         if let Some(_initializer) = &initializer {
-            self.consume(TokenType::Semicolon, "Expected ';' after for _initializer.");
+            self.consume(TokenType::Semicolon, "Expected ';' after for initializer.");
         }
 
         // We need a _condition, but it can be empty.
-        // A _condition can be an expression or nothing.
+        // A condition can be an expression or nothing.
         let condition = if !self.check(&TokenType::Semicolon) {
             Some(self.expression())
         } else {
             None
         };
 
-        // Evaluate the _condition, but don't consume the semicolon.
+        // Evaluate the condition, but don't consume the semicolon.
         // We need to consume the semicolon in the increment clause.
         if let Some(_condition) = &condition {
-            self.consume(TokenType::Semicolon, "Expected ';' after loop _condition.");
+            self.consume(TokenType::Semicolon, "Expected ';' after loop condition.");
         }
 
         let increment = if !self.check(&TokenType::RightParenthesis) {
@@ -599,9 +655,10 @@ impl Parser {
         let mut body = self.statement();
 
         if let Some(increment) = increment {
-            body = Box::new(Statement::Block {
-                statements: vec![*body, Statement::Expression(increment)],
-            });
+            body = Box::new(Statement::Block(vec![
+                *body,
+                Statement::Expression(increment),
+            ]));
         }
 
         body

@@ -195,5 +195,11 @@ pub fn format_time(nanos: u128) -> String {
         }
     }
 
+    // Add an "and" to the final unit if there are multiple units.
+    if result.matches(',').count() > 1 {
+        let last_comma = result.rfind(',').unwrap();
+        result.insert_str(last_comma + 1, " and");
+    }
+
     result
 }
