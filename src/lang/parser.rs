@@ -85,6 +85,12 @@ pub enum Statement {
         condition: Expression,
         body: Box<Statement>,
     },
+    For {
+        initializer: Option<Box<Statement>>,
+        condition: Option<Expression>,
+        increment: Option<Expression>,
+        body: Box<Statement>,
+    },
     Function {
         name: Token,
         parameters: Vec<(Token, Token)>,
@@ -141,6 +147,30 @@ impl Display for Statement {
                 write!(f, ")")
             }
             Statement::While { condition, body } => write!(f, "(while {} {})", condition, body),
+            Statement::For {
+                initializer,
+                condition,
+                increment,
+                body,
+            } => {
+                write!(f, "(for ")?;
+
+                if let Some(initializer) = initializer {
+                    write!(f, "{} ", initializer)?;
+                }
+
+                if let Some(condition) = condition {
+                    write!(f, "{} ", condition)?;
+                }
+
+                if let Some(increment) = increment {
+                    write!(f, "{} ", increment)?;
+                }
+
+                write!(f, "{}", body)?;
+
+                write!(f, ")")
+            }
             Statement::Function {
                 name,
                 parameters,

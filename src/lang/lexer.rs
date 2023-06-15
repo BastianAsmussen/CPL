@@ -505,6 +505,21 @@ pub enum TokenType {
     /// }
     /// ```
     Default,
+    /// The '=>' keyword.
+    /// Used for conditional switch statements.
+    /// The arrow operator is used to separate the expression from the statements.
+    ///
+    /// # Example
+    /// ```
+    /// switch <expression> {
+    ///     case <expression> => <statement>,
+    ///     case <expression> => {
+    ///         <statements>
+    ///     },
+    ///     default => <statement>,
+    /// }
+    /// ```
+    ExpressionArrow,
     /// The 'true' keyword.
     /// Used for boolean values.
     ///
@@ -778,6 +793,9 @@ impl Scanner {
                 if self.match_char('=') {
                     // Equal to.
                     self.add_token(TokenType::EqualEqual);
+                } else if self.match_char('>') {
+                    // Expression arrow, used for closures.
+                    self.add_token(TokenType::ExpressionArrow);
                 } else {
                     // Assignment.
                     self.add_token(TokenType::Equal);
