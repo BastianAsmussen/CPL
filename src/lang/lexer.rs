@@ -1063,6 +1063,11 @@ impl Scanner {
 
     fn string(&mut self) {
         while self.peek() != '"' && !self.is_at_end() {
+            if self.peek() == '\\' {
+                self.advance();
+                self.column += 1;
+            }
+
             if self.peek() == '\n' {
                 self.line += 1;
                 self.column = 1;
@@ -1132,5 +1137,119 @@ impl Scanner {
         };
 
         self.add_token(token_type);
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_scan_tokens() {
+        let source = "let a = 1 + 2 - 3 * 4 / 5 == 6 != 7 < 8 <= 9 > 10 >= 11 % 12;";
+        let mut scanner = Scanner::new(source);
+        let tokens = scanner.scan_tokens();
+
+        assert_eq!(tokens.len(), 28); // 27 tokens + EOF.
+
+        assert_eq!(tokens[0].token_type, TokenType::Variable);
+        assert_eq!(tokens[1].token_type, TokenType::Identifier);
+        assert_eq!(tokens[2].token_type, TokenType::Equal);
+
+        assert_eq!(tokens[3].token_type, TokenType::Number);
+        assert_eq!(tokens[4].token_type, TokenType::Plus);
+        assert_eq!(tokens[5].token_type, TokenType::Number);
+        assert_eq!(tokens[6].token_type, TokenType::Minus);
+        assert_eq!(tokens[7].token_type, TokenType::Number);
+        assert_eq!(tokens[8].token_type, TokenType::Star);
+        assert_eq!(tokens[9].token_type, TokenType::Number);
+        assert_eq!(tokens[10].token_type, TokenType::Slash);
+        assert_eq!(tokens[11].token_type, TokenType::Number);
+
+        assert_eq!(tokens[12].token_type, TokenType::EqualEqual);
+        assert_eq!(tokens[13].token_type, TokenType::Number);
+        assert_eq!(tokens[14].token_type, TokenType::BangEqual);
+        assert_eq!(tokens[15].token_type, TokenType::Number);
+        assert_eq!(tokens[16].token_type, TokenType::LessThan);
+        assert_eq!(tokens[17].token_type, TokenType::Number);
+        assert_eq!(tokens[18].token_type, TokenType::LessThanOrEqual);
+        assert_eq!(tokens[19].token_type, TokenType::Number);
+        assert_eq!(tokens[20].token_type, TokenType::GreaterThan);
+        assert_eq!(tokens[21].token_type, TokenType::Number);
+        assert_eq!(tokens[22].token_type, TokenType::GreaterThanOrEqual);
+        assert_eq!(tokens[23].token_type, TokenType::Number);
+        assert_eq!(tokens[24].token_type, TokenType::Percent);
+        assert_eq!(tokens[25].token_type, TokenType::Number);
+        assert_eq!(tokens[26].token_type, TokenType::Semicolon);
+
+        assert_eq!(tokens[27].token_type, TokenType::EndOfFile);
+    }
+
+    #[test]
+    fn test_scan_tokens_with_strings() {
+        let source = r#"
+            let a = "Hello, world!";
+            let b = "Hello, \"world\"!";
+            let c = "Hello, \nworld!";
+            let d = "Hello, \tworld!";
+            let e = "Hello, \\world!";
+            let f = "Hello, \rworld!";
+            let g = "Hello, \0world!";
+            let h = "Hello, \x00world!";
+        "#;
+        let mut scanner = Scanner::new(source);
+        let tokens = scanner.scan_tokens();
+
+        assert_eq!(tokens.len(), 8 * 5 + 1); // 8 lines, 5 tokens per line, plus EOF.
+
+        assert_eq!(tokens[0].token_type, TokenType::Variable);
+        assert_eq!(tokens[1].token_type, TokenType::Identifier);
+        assert_eq!(tokens[2].token_type, TokenType::Equal);
+        assert_eq!(tokens[3].token_type, TokenType::String);
+        assert_eq!(tokens[4].token_type, TokenType::Semicolon);
+
+        assert_eq!(tokens[5].token_type, TokenType::Variable);
+        assert_eq!(tokens[6].token_type, TokenType::Identifier);
+        assert_eq!(tokens[7].token_type, TokenType::Equal);
+        assert_eq!(tokens[8].token_type, TokenType::String);
+        assert_eq!(tokens[9].token_type, TokenType::Semicolon);
+
+        assert_eq!(tokens[10].token_type, TokenType::Variable);
+        assert_eq!(tokens[11].token_type, TokenType::Identifier);
+        assert_eq!(tokens[12].token_type, TokenType::Equal);
+        assert_eq!(tokens[13].token_type, TokenType::String);
+        assert_eq!(tokens[14].token_type, TokenType::Semicolon);
+
+        assert_eq!(tokens[15].token_type, TokenType::Variable);
+        assert_eq!(tokens[16].token_type, TokenType::Identifier);
+        assert_eq!(tokens[17].token_type, TokenType::Equal);
+        assert_eq!(tokens[18].token_type, TokenType::String);
+        assert_eq!(tokens[19].token_type, TokenType::Semicolon);
+
+        assert_eq!(tokens[20].token_type, TokenType::Variable);
+        assert_eq!(tokens[21].token_type, TokenType::Identifier);
+        assert_eq!(tokens[22].token_type, TokenType::Equal);
+        assert_eq!(tokens[23].token_type, TokenType::String);
+        assert_eq!(tokens[24].token_type, TokenType::Semicolon);
+
+        assert_eq!(tokens[25].token_type, TokenType::Variable);
+        assert_eq!(tokens[26].token_type, TokenType::Identifier);
+        assert_eq!(tokens[27].token_type, TokenType::Equal);
+        assert_eq!(tokens[28].token_type, TokenType::String);
+        assert_eq!(tokens[29].token_type, TokenType::Semicolon);
+
+        assert_eq!(tokens[30].token_type, TokenType::Variable);
+        assert_eq!(tokens[31].token_type, TokenType::Identifier);
+        assert_eq!(tokens[32].token_type, TokenType::Equal);
+        assert_eq!(tokens[33].token_type, TokenType::String);
+        assert_eq!(tokens[34].token_type, TokenType::Semicolon);
+
+        assert_eq!(tokens[35].token_type, TokenType::Variable);
+        assert_eq!(tokens[36].token_type, TokenType::Identifier);
+        assert_eq!(tokens[37].token_type, TokenType::Equal);
+        assert_eq!(tokens[38].token_type, TokenType::String);
+        assert_eq!(tokens[39].token_type, TokenType::Semicolon);
+
+        assert_eq!(tokens[40].token_type, TokenType::EndOfFile);
     }
 }

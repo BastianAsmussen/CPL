@@ -1,6 +1,6 @@
 use crate::util::files;
 
-mod lang;
+pub mod lang;
 mod util;
 
 fn main() {
