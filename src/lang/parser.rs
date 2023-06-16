@@ -234,6 +234,10 @@ impl Parser {
         let mut statements = Vec::new();
 
         while !self.is_at_end() {
+            if self.had_error {
+                break;
+            }
+
             statements.push(self.declaration());
         }
 
@@ -774,6 +778,12 @@ impl Parser {
                 token.column,
                 &format!("{} at '{}'", token.lexeme, message),
             );
+        }
+
+        if !self.had_error {
+            self.had_error = true;
+        } else {
+            panic!("Too many errors!");
         }
     }
 }
