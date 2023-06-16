@@ -1114,7 +1114,7 @@ impl Scanner {
             "else" => TokenType::Else,
             "switch" => TokenType::Switch,
             "case" => TokenType::Case,
-            "default" => TokenType::Default,
+            "_" => TokenType::Default,
             "while" => TokenType::While,
             "continue" => TokenType::Continue,
             "break" => TokenType::Break,
