@@ -90,3 +90,9 @@ impl Cpl {
         println!("Total time: {}.", format_time(timer.total_time()));
     }
 }
+
+impl Default for Cpl {
+    fn default() -> Self {
+        Self::new()
+    }
+}

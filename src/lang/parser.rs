@@ -571,6 +571,8 @@ impl Parser {
             self.return_statement()
         } else if self.matches(&[TokenType::If]) {
             self.if_statement()
+        } else if self.matches(&[TokenType::Switch]) {
+            self.switch_statement()
         } else if self.matches(&[TokenType::While]) {
             self.while_statement()
         } else if self.matches(&[TokenType::For]) {
@@ -630,6 +632,10 @@ impl Parser {
         })
     }
 
+    fn switch_statement(&mut self) -> Box<Statement> {
+        unimplemented!("Switch statements are not yet implemented!")
+    }
+
     fn while_statement(&mut self) -> Box<Statement> {
         self.consume(TokenType::LeftParenthesis, "Expected '(' after 'while'.");
         let condition = self.expression();
@@ -644,58 +650,7 @@ impl Parser {
     }
 
     fn for_statement(&mut self) -> Box<Statement> {
-        self.consume(TokenType::LeftParenthesis, "Expected '(' after 'for'.");
-
-        // We need an initializer, but it can be empty.
-        // An initializer can be a variable declaration or an expression statement.
-        // It basically means that we can have a variable declaration, an expression, or nothing.
-        let initializer = if self.matches(&[TokenType::Semicolon]) {
-            None
-        } else if self.matches(&[TokenType::Variable]) {
-            Some(self.variable_declaration())
-        } else {
-            Some(*self.expression_statement())
-        };
-
-        if let Some(_initializer) = &initializer {
-            self.consume(TokenType::Semicolon, "Expected ';' after for initializer.");
-        }
-
-        // We need a _condition, but it can be empty.
-        // A condition can be an expression or nothing.
-        let condition = if !self.check(&TokenType::Semicolon) {
-            Some(self.expression())
-        } else {
-            None
-        };
-
-        // Evaluate the condition, but don't consume the semicolon.
-        // We need to consume the semicolon in the increment clause.
-        if let Some(_condition) = &condition {
-            self.consume(TokenType::Semicolon, "Expected ';' after loop condition.");
-        }
-
-        let increment = if !self.check(&TokenType::RightParenthesis) {
-            Some(self.expression())
-        } else {
-            None
-        };
-
-        self.consume(
-            TokenType::RightParenthesis,
-            "Expected ')' after for clauses.",
-        );
-
-        let mut body = self.statement();
-
-        if let Some(increment) = increment {
-            body = Box::new(Statement::Block(vec![
-                *body,
-                Statement::Expression(increment),
-            ]));
-        }
-
-        body
+        unimplemented!("For statements are not yet implemented!")
     }
 
     fn break_statement(&mut self) -> Box<Statement> {
